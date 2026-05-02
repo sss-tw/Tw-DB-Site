@@ -4146,7 +4146,7 @@ async function renderDetail(type, id) {
     ? `<tr><th>Series</th></tr><tr><td><div class="infobox-spacer"></div><table class="series">${orderedSeries.map((x, i) => `<tr><th>${i + 1}.</th><td><div><a href="?quest=${encodeURIComponent(String(x.id))}">${escapeHtml(x.name)}</a></div></td></tr>`).join("")}<tr><th>${orderedSeries.length + 1}.</th><td><b>${escapeHtml(row.name)}</b></td></tr></table></td></tr>`
     : "";
   const infoboxTail = type === "npc"
-    ? `${row.model_image ? `<div style="width:220px;height:220px;border:1px solid #404040;border-radius:5px;background:#111;overflow:hidden"><img width="220" height="220" src="${escapeHtml(row.model_image)}" alt="${escapeHtml(row.name)}"></div>` : ""}`
+    ? `${row.model_image ? `<div style="width:220px;height:220px;border:1px solid #404040;border-radius:5px;background:#111;overflow:hidden"><img width="220" height="220" src="${escapeHtml(row.model_image)}" alt="${escapeHtml(row.name)}" onerror="this.style.display='none'"></div>` : ""}`
     : "";
   const infoboxEntries = type === "npc"
     ? [
