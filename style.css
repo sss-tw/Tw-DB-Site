@@ -291,13 +291,19 @@ body.is-home .home-browse-popular {
 }
 body.is-home .home-browse-link {
   display: block;
+  box-sizing: border-box;
+  width: 100%;
   padding: 8px 10px;
   background: #242424;
   border: 1px solid #454545;
   color: #ffd100;
   text-decoration: none;
+  text-align: left;
+  font-family: Verdana, sans-serif;
+  cursor: pointer;
 }
-body.is-home .home-browse-link:hover {
+body.is-home .home-browse-link:hover,
+body.is-home .home-browse-link.active {
   background: #303030;
   border-color: #6a5827;
 }
@@ -313,13 +319,63 @@ body.is-home .home-browse-link span {
   font-size: 11px;
   line-height: 1.3;
 }
-body.is-home .home-browse-popular .home-browse-link {
-  display: inline-block;
-  padding: 5px 9px;
+body.is-home .home-browse-subcategories {
+  margin-top: 12px;
 }
-body.is-home .home-browse-popular .home-browse-link b {
+body.is-home .home-browse-panel {
+  display: none;
+  padding-top: 10px;
+  border-top: 1px solid #333;
+}
+body.is-home .home-browse-panel.active {
+  display: block;
+}
+body.is-home .home-browse-panel > .home-browse-link {
+  display: inline-block;
+  width: auto;
+  padding: 5px 9px;
+  margin-bottom: 8px;
+}
+body.is-home .home-browse-panel > .home-browse-link b {
   display: inline;
   font-size: 12px;
+}
+body.is-home .home-browse-tree {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+body.is-home .home-browse-tree.depth-0 {
+  columns: 3;
+  column-gap: 18px;
+}
+body.is-home .home-browse-node {
+  break-inside: avoid;
+  margin: 0 0 4px;
+  line-height: 1.35;
+}
+body.is-home .home-browse-node a {
+  color: #ffd100;
+  text-decoration: none;
+  font-size: 12px;
+}
+body.is-home .home-browse-node a:hover {
+  text-decoration: underline;
+}
+body.is-home .home-browse-node.depth-0 > a {
+  color: #fff;
+  font-weight: 700;
+}
+body.is-home .home-browse-tree.depth-1,
+body.is-home .home-browse-tree.depth-2 {
+  margin: 3px 0 8px 10px;
+  padding-left: 8px;
+  border-left: 1px solid #383838;
+}
+body.is-home .home-browse-node.depth-1 > a,
+body.is-home .home-browse-node.depth-2 > a {
+  color: #d8c47b;
+  font-size: 11px;
 }
 body.is-home #topbar-right {
   float: none;

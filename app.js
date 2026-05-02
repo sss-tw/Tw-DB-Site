@@ -63,7 +63,8 @@ const I18N = {
     searchButton: "Search",
     browseDatabase: "Browse Database",
     browseHint: "Jump directly to common database sections.",
-    popularBrowse: "Popular Browse"
+    popularBrowse: "Popular Browse",
+    allEntries: "All"
   },
   zhCN: {
     statusReady: "已就绪",
@@ -125,7 +126,8 @@ const I18N = {
     searchButton: "搜索",
     browseDatabase: "浏览数据库",
     browseHint: "直接进入常用数据库分类，减少搜索等待。",
-    popularBrowse: "常用浏览"
+    popularBrowse: "常用浏览",
+    allEntries: "全部"
   }
 };
 
@@ -1009,6 +1011,14 @@ function extractSpellIdsFromHtml(htmlText) {
   return ids;
 }
 
+function spellDescriptionForLocale(spell) {
+  const original = String(spell.original_description || spell.en_description || "").trim();
+  if (state.lang !== "zhCN") {
+    return original || String(spell.description || spell.tooltip_description_text || "").trim();
+  }
+  return String(spell.tooltip_description_text || spell.description || original).trim();
+}
+
 function localSpellTooltipHtml(spell) {
   const name = escapeHtml(spell.name || `${spell.id}`);
   const rankText = String(spell.rank_text || spell.tooltip_rank_text || "").trim();
@@ -1016,7 +1026,7 @@ function localSpellTooltipHtml(spell) {
   const castText = String(spell.cast_text || spell.tooltip_cast_text || spell.cast_time_text || "").trim();
   const costText = String(spell.cost_text || "").trim();
   const description = resolveSpellPlaceholders(
-    String(spell.tooltip_description_text || spell.description || "").trim(),
+    spellDescriptionForLocale(spell),
     spell.original_description || spell.en_description || ""
   );
   return `<table><tr><td><table><tr><td>
@@ -1084,10 +1094,10 @@ async function hydrateItemEffectSpells(rows, locale, keys = ["effect_html", "too
     CASE WHEN :locale='zhCN' THEN COALESCE(l.name, s.name) ELSE s.name END AS name,
     s.icon_name, s.cost_text, s.range_text, s.cast_time_text,
     s.description AS original_description,
-    CASE WHEN :locale='zhCN' THEN COALESCE(l.description, st.description_text, s.description) ELSE COALESCE(st.description_text, s.description) END AS description,
+    CASE WHEN :locale='zhCN' THEN COALESCE(l.description, st.description_text, s.description) ELSE s.description END AS description,
     st.rank_text AS tooltip_rank_text, st.range_short_text AS tooltip_range_short_text,
     st.cast_text AS tooltip_cast_text,
-    CASE WHEN :locale='zhCN' THEN COALESCE(l.description, st.description_text, s.description) ELSE COALESCE(st.description_text, s.description) END AS tooltip_description_text
+    CASE WHEN :locale='zhCN' THEN COALESCE(l.description, st.description_text, s.description) ELSE s.description END AS tooltip_description_text
     FROM spells s
     LEFT JOIN entity_localizations l ON l.entity_type='spell' AND l.entity_id=s.spell_id AND l.locale='zhCN'
     LEFT JOIN spell_tooltips st ON st.spell_id=s.spell_id
@@ -1720,40 +1730,66 @@ function homeBrowseLink(href, label, description = "") {
   return `<a class="home-browse-link" href="${escapeHtml(href)}"><b>${escapeHtml(label)}</b>${description ? `<span>${escapeHtml(description)}</span>` : ""}</a>`;
 }
 
+function homeBrowseButton(group, label, description = "") {
+  return `<button type="button" class="home-browse-link home-browse-main" data-home-browse-group="${escapeHtml(group)}"><b>${escapeHtml(label)}</b>${description ? `<span>${escapeHtml(description)}</span>` : ""}</button>`;
+}
+
+function homeBrowseGroupFromHref(href) {
+  const match = /^\?([a-z]+)/i.exec(String(href || ""));
+  return match ? match[1] : "";
+}
+
+function homeBrowseMenuTree(entries, depth = 0) {
+  const rows = (entries || [])
+    .filter((entry) => Array.isArray(entry) && entry[0] != null)
+    .map((entry) => {
+      const label = pathLabel(entry[1] || "", entry[2] || "");
+      const href = entry[2] || "javascript:;";
+      const childHtml = Array.isArray(entry[3]) && entry[3].length
+        ? homeBrowseMenuTree(entry[3], depth + 1)
+        : "";
+      return `
+        <li class="home-browse-node depth-${depth}">
+          <a href="${escapeHtml(href)}">${escapeHtml(label)}</a>
+          ${childHtml}
+        </li>
+      `;
+    }).join("");
+  return rows ? `<ul class="home-browse-tree depth-${depth}">${rows}</ul>` : "";
+}
+
+function homeBrowsePanel(group, topEntry) {
+  const directHref = topEntry[2] || `?${group}`;
+  const allLink = homeBrowseLink(directHref, t("allEntries"));
+  const tree = homeBrowseMenuTree(topEntry[3] || [], 0);
+  return `<div class="home-browse-panel" data-home-browse-panel="${escapeHtml(group)}">${allLink}${tree}</div>`;
+}
+
 function renderHomeBrowse() {
-  const mainLinks = [
-    ["?items", pathLabel("Items"), state.lang === "zhCN" ? "装备、材料、配方" : "Equipment, materials, recipes"],
-    ["?itemsets", pathLabel("Item Sets"), state.lang === "zhCN" ? "套装与套装奖励" : "Sets and bonuses"],
-    ["?npcs", pathLabel("NPCs"), state.lang === "zhCN" ? "生物、首领、商人" : "Creatures, bosses, vendors"],
-    ["?objects", pathLabel("Objects"), state.lang === "zhCN" ? "箱子、矿点、草药" : "Chests, veins, herbs"],
-    ["?quests", pathLabel("Quests"), state.lang === "zhCN" ? "任务与奖励" : "Quests and rewards"],
-    ["?spells", pathLabel("Spells"), state.lang === "zhCN" ? "技能、专业、法术" : "Skills, professions, spells"],
-    ["?factions", pathLabel("Factions"), state.lang === "zhCN" ? "声望阵营" : "Reputation factions"]
-  ];
-  const popular = [
-    ["?items=2", pathLabel("Weapons")],
-    ["?items=4", pathLabel("Armor")],
-    ["?items=9", pathLabel("Recipes")],
-    ["?items=0", pathLabel("Consumables")],
-    ["?items=7", pathLabel("Trade Goods")],
-    ["?quests=0", pathLabel("Eastern Kingdoms")],
-    ["?quests=1", pathLabel("Kalimdor")],
-    ["?quests=2", pathLabel("Dungeons")],
-    ["?spells=7", pathLabel("Class Skills")],
-    ["?spells=11", pathLabel("Professions")],
-    ["?npcs=7", pathLabel("Humanoids")],
-    ["?objects=-4", pathLabel("Mineral Veins")]
-  ];
+  syncBrowseMenus();
+  const topEntries = (typeof mn_database !== "undefined" ? mn_database : [])
+    .filter((entry) => Array.isArray(entry) && entry[0] != null && entry[2]);
+  const descriptions = {
+    items: state.lang === "zhCN" ? "装备、材料、配方" : "Equipment, materials, recipes",
+    itemsets: state.lang === "zhCN" ? "套装与套装奖励" : "Sets and bonuses",
+    npcs: state.lang === "zhCN" ? "生物、首领、商人" : "Creatures, bosses, vendors",
+    objects: state.lang === "zhCN" ? "箱子、矿点、草药" : "Chests, veins, herbs",
+    quests: state.lang === "zhCN" ? "任务与奖励" : "Quests and rewards",
+    spells: state.lang === "zhCN" ? "技能、专业、法术" : "Skills, professions, spells",
+    factions: state.lang === "zhCN" ? "声望阵营" : "Reputation factions"
+  };
   el.detail.innerHTML = `
     <div class="home-browse">
       <h2>${escapeHtml(t("browseDatabase"))}</h2>
       <p>${escapeHtml(t("browseHint"))}</p>
       <div class="home-browse-grid">
-        ${mainLinks.map(([href, label, description]) => homeBrowseLink(href, label, description)).join("")}
+        ${topEntries.map((entry) => {
+          const group = homeBrowseGroupFromHref(entry[2]);
+          return homeBrowseButton(group, pathLabel(entry[1], entry[2]), descriptions[group] || "");
+        }).join("")}
       </div>
-      <h3>${escapeHtml(t("popularBrowse"))}</h3>
-      <div class="home-browse-popular">
-        ${popular.map(([href, label]) => homeBrowseLink(href, label)).join("")}
+      <div class="home-browse-subcategories">
+        ${topEntries.map((entry) => homeBrowsePanel(homeBrowseGroupFromHref(entry[2]), entry)).join("")}
       </div>
     </div>
   `;
@@ -2143,10 +2179,10 @@ async function primeGlobalSpells(ids, locale) {
       CASE WHEN :locale='zhCN' THEN COALESCE(l.name, s.name) ELSE s.name END AS name,
       s.icon_name, s.cost_text, s.range_text, s.cast_time_text,
       s.description AS original_description,
-      CASE WHEN :locale='zhCN' THEN COALESCE(l.description, st.description_text, s.description) ELSE COALESCE(st.description_text, s.description) END AS description,
+      CASE WHEN :locale='zhCN' THEN COALESCE(l.description, st.description_text, s.description) ELSE s.description END AS description,
       st.rank_text AS tooltip_rank_text, st.range_short_text AS tooltip_range_short_text,
       st.cast_text AS tooltip_cast_text,
-      CASE WHEN :locale='zhCN' THEN COALESCE(l.description, st.description_text, s.description) ELSE COALESCE(st.description_text, s.description) END AS tooltip_description_text
+      CASE WHEN :locale='zhCN' THEN COALESCE(l.description, st.description_text, s.description) ELSE s.description END AS tooltip_description_text
     FROM spells s
     LEFT JOIN entity_localizations l ON l.entity_type='spell' AND l.entity_id=s.spell_id AND l.locale='zhCN'
     LEFT JOIN spell_tooltips st ON st.spell_id=s.spell_id
@@ -2432,7 +2468,7 @@ function renderSpellTooltipBlock(row) {
   const rangeText = String(row.tooltip_range_short_text || row.range_text || "").trim();
   const castText = String(row.tooltip_cast_text || row.cast_time_text || "").trim();
   const descText = resolveSpellPlaceholders(
-    String(row.tooltip_description_text || row.description || "").trim(),
+    spellDescriptionForLocale(row),
     row.original_description || row.en_description || ""
   );
   const auraText = resolveSpellPlaceholders(
@@ -3407,8 +3443,8 @@ async function renderDetail(type, id) {
       if (spellTooltipTables.length) {
         const spellTooltipCols = await execRows("PRAGMA table_info(spell_tooltips);");
         const spellTooltipColNames = new Set(spellTooltipCols.map((x) => String(x.name || "")));
-        const auraSelect = spellTooltipColNames.has("aura_tooltip_text") ? "st.aura_tooltip_text" : "''";
-        spellTooltipSelect = `st.rank_text AS tooltip_rank_text, st.range_short_text AS tooltip_range_short_text, st.cast_text AS tooltip_cast_text, st.description_text AS tooltip_description_text, ${auraSelect} AS tooltip_aura_text`;
+        const auraSelect = spellTooltipColNames.has("aura_tooltip_text") ? "CASE WHEN :locale='zhCN' THEN st.aura_tooltip_text ELSE '' END" : "''";
+        spellTooltipSelect = `st.rank_text AS tooltip_rank_text, st.range_short_text AS tooltip_range_short_text, st.cast_text AS tooltip_cast_text, CASE WHEN :locale='zhCN' THEN st.description_text ELSE s.description END AS tooltip_description_text, ${auraSelect} AS tooltip_aura_text`;
         spellTooltipJoin = "LEFT JOIN spell_tooltips st ON st.spell_id=s.spell_id";
       }
       const spellNampowerTables = await execRows("SELECT name FROM sqlite_master WHERE type='table' AND name='spell_nampower_records';");
@@ -4130,6 +4166,18 @@ function bindEvents() {
     state.timer = setTimeout(() => {
       performLiveSearch();
     }, 180);
+  });
+  el.detail.addEventListener("click", (event) => {
+    const trigger = event.target.closest("[data-home-browse-group]");
+    if (!trigger) return;
+    event.preventDefault();
+    const group = trigger.getAttribute("data-home-browse-group") || "";
+    document.querySelectorAll("[data-home-browse-group]").forEach((node) => {
+      node.classList.toggle("active", node === trigger);
+    });
+    document.querySelectorAll("[data-home-browse-panel]").forEach((panel) => {
+      panel.classList.toggle("active", panel.getAttribute("data-home-browse-panel") === group);
+    });
   });
   el.langEn.addEventListener("click", async () => {
     state.lang = "enUS";
