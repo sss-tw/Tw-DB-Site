@@ -1,0 +1,6 @@
+*.db
+*.db-wal
+*.db-shm
+compare-shots/
+compare-html/
+.DS_Store
