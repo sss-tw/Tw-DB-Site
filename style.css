@@ -201,7 +201,6 @@ body:not(.is-home) #topbar {
 
 body.is-home #db-nav,
 body.is-home #db-breadcrumb,
-body.is-home #local-detail,
 body.is-home #tabs-generic,
 body.is-home #listview-generic,
 body.is-home #db-global-nav,
@@ -253,6 +252,74 @@ body.is-home #main-contents {
 body.is-home .text {
   border: 0 !important;
   background: transparent !important;
+}
+body.is-home #local-detail {
+  display: block;
+  width: 760px;
+  max-width: calc(100vw - 40px);
+  margin: 24px auto 0;
+}
+body.is-home .home-browse {
+  background: rgba(18, 18, 18, 0.78);
+  border: 1px solid #3b3321;
+  color: #d6d6d6;
+  padding: 14px 16px 16px;
+  text-align: left;
+}
+body.is-home .home-browse h2,
+body.is-home .home-browse h3 {
+  color: #fff;
+  margin: 0 0 8px;
+}
+body.is-home .home-browse h3 {
+  margin-top: 14px;
+  font-size: 14px;
+}
+body.is-home .home-browse p {
+  margin: 0 0 12px;
+  color: #aaa;
+}
+body.is-home .home-browse-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+body.is-home .home-browse-popular {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+body.is-home .home-browse-link {
+  display: block;
+  padding: 8px 10px;
+  background: #242424;
+  border: 1px solid #454545;
+  color: #ffd100;
+  text-decoration: none;
+}
+body.is-home .home-browse-link:hover {
+  background: #303030;
+  border-color: #6a5827;
+}
+body.is-home .home-browse-link b {
+  display: block;
+  color: #ffd100;
+  font-size: 13px;
+}
+body.is-home .home-browse-link span {
+  display: block;
+  margin-top: 3px;
+  color: #aaa;
+  font-size: 11px;
+  line-height: 1.3;
+}
+body.is-home .home-browse-popular .home-browse-link {
+  display: inline-block;
+  padding: 5px 9px;
+}
+body.is-home .home-browse-popular .home-browse-link b {
+  display: inline;
+  font-size: 12px;
 }
 body.is-home #topbar-right {
   float: none;

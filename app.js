@@ -42,7 +42,28 @@ const I18N = {
     questStartBy: "Starts From",
     questEndBy: "Ends At",
     questRequires: "Requires Quests",
-    questOpens: "Opens Quests"
+    questOpens: "Opens Quests",
+    searchResults: "Search Results",
+    description: "Description",
+    reward: "Reward",
+    setBonuses: "Set Bonuses",
+    spellDetails: "Details on spell",
+    seeAlso: "See also",
+    history: "History",
+    reputation: "Reputation",
+    taughtBy: "Taught by",
+    droppedBy: "Dropped by",
+    containedInObject: "Contained in object",
+    createdBy: "Created by",
+    uncategorizedSpells: "Uncategorized spells",
+    startsQuest: "Starts quest",
+    contains: "Contains",
+    members: "Members",
+    searchPlaceholder: "Search database...",
+    searchButton: "Search",
+    browseDatabase: "Browse Database",
+    browseHint: "Jump directly to common database sections.",
+    popularBrowse: "Popular Browse"
   },
   zhCN: {
     statusReady: "已就绪",
@@ -83,19 +104,42 @@ const I18N = {
     questStartBy: "起始于",
     questEndBy: "结束于",
     questRequires: "前置任务",
-    questOpens: "后续任务"
+    questOpens: "后续任务",
+    searchResults: "搜索结果",
+    description: "描述",
+    reward: "奖励",
+    setBonuses: "套装奖励",
+    spellDetails: "法术详情",
+    seeAlso: "相关信息",
+    history: "历史",
+    reputation: "声望",
+    taughtBy: "训练师",
+    droppedBy: "掉落自",
+    containedInObject: "包含于物体",
+    createdBy: "制造来源",
+    uncategorizedSpells: "未分类法术",
+    startsQuest: "起始任务",
+    contains: "包含",
+    members: "成员",
+    searchPlaceholder: "搜索数据库...",
+    searchButton: "搜索",
+    browseDatabase: "浏览数据库",
+    browseHint: "直接进入常用数据库分类，减少搜索等待。",
+    popularBrowse: "常用浏览"
   }
 };
 
 const state = {
   lang: localStorage.getItem("turtle-db-lang") || "enUS",
   dbWorker: null,
-  timer: null
+  timer: null,
+  originalMenus: null
 };
 
 const el = {
   form: document.getElementById("header-search-form") || document.getElementById("search-form"),
   input: document.getElementById("live-search-generic") || document.getElementById("search-generic"),
+  searchButton: document.getElementById("home-search-btn"),
   status: document.getElementById("status-line"),
   results: document.getElementById("local-results"),
   precontents: document.getElementById("main-precontents"),
@@ -110,6 +154,702 @@ const el = {
 function t(key) {
   const bundle = I18N[state.lang] || I18N.enUS;
   return bundle[key] || key;
+}
+
+function uiLabel(label) {
+  if (state.lang !== "zhCN") return label;
+  const labels = {
+    "Database": "数据库",
+    "Browse": "浏览",
+    "Items": "物品",
+    "Item Sets": "套装",
+    "Weapons": "武器",
+    "Armor": "护甲",
+    "One-Handed Swords": "单手剑",
+    "NPCs": "NPC",
+    "Npcs": "NPC",
+    "Objects": "物体",
+    "Quests": "任务",
+    "Spells": "法术",
+    "Factions": "阵营",
+    "One-Handed Axes": "单手斧",
+    "Two-Handed Axes": "双手斧",
+    "Bows": "弓",
+    "Guns": "枪械",
+    "One-Handed Maces": "单手锤",
+    "Two-Handed Maces": "双手锤",
+    "Polearms": "长柄武器",
+    "One-Handed Swords": "单手剑",
+    "Two-Handed Swords": "双手剑",
+    "Staves": "法杖",
+    "Fist Weapons": "拳套",
+    "Miscellaneous": "杂项",
+    "Daggers": "匕首",
+    "Thrown": "投掷武器",
+    "Crossbows": "弩",
+    "Wands": "魔杖",
+    "Fishing Poles": "鱼竿",
+    "Cloth": "布甲",
+    "Leather": "皮甲",
+    "Mail": "锁甲",
+    "Plate": "板甲",
+    "Shields": "盾牌",
+    "Librams": "圣契",
+    "Idols": "神像",
+    "Totems": "图腾",
+    "Sigils": "魔印",
+    "Head": "头部",
+    "Neck": "颈部",
+    "Shoulder": "肩部",
+    "Shirt": "衬衣",
+    "Chest": "胸部",
+    "Waist": "腰部",
+    "Legs": "腿部",
+    "Feet": "脚",
+    "Wrist": "手腕",
+    "Hands": "手",
+    "Finger": "手指",
+    "Trinket": "饰品",
+    "Held In Off-hand": "副手物品",
+    "Relic": "圣物",
+    "Ammo": "弹药",
+    "Quiver": "箭袋",
+    "Bag": "背包",
+    "Key": "钥匙",
+    "Permanent": "永久",
+    "Junk": "垃圾",
+    "Reagent": "材料",
+    "Consumable": "消耗品",
+    "Consumables": "消耗品",
+    "Trade Goods": "商品",
+    "Recipe": "配方",
+    "Gem": "宝石",
+    "Glyph": "雕文",
+    "Quest": "任务",
+    "Projectile": "弹药",
+    "Projectiles": "弹药",
+    "Containers": "容器",
+    "Bags": "背包",
+    "Soul Bags": "灵魂袋",
+    "Herb Bags": "草药袋",
+    "Enchanting Bags": "附魔材料袋",
+    "Engineering Bags": "工程学材料袋",
+    "Leatherworking Bags": "制皮材料袋",
+    "Potions": "药水",
+    "Elixirs": "药剂",
+    "Flasks": "合剂",
+    "Scrolls": "卷轴",
+    "Food & Drinks": "食物和饮料",
+    "Permanent Item Enhancements": "永久物品强化",
+    "Bandages": "绷带",
+    "Other": "其他",
+    "Parts": "零件",
+    "Explosives": "爆炸物",
+    "Devices": "装置",
+    "Metal & Stone": "金属和石头",
+    "Meat": "肉类",
+    "Herbs": "草药",
+    "Elemental": "元素",
+    "Enchanting": "附魔",
+    "Material": "材料",
+    "Arrows": "箭",
+    "Bullets": "子弹",
+    "Quivers": "箭袋",
+    "Ammo Pouches": "弹药袋",
+    "Recipes": "配方",
+    "Books": "书籍",
+    "Reagents": "材料",
+    "Keys": "钥匙",
+    "Amulets": "项链",
+    "Cloaks": "披风",
+    "Rings": "戒指",
+    "Trinkets": "饰品",
+    "Off-hand Frills": "副手物品",
+    "Shirts": "衬衣",
+    "Tabards": "战袍",
+    "Companions": "伙伴",
+    "Mounts": "坐骑",
+    "Classes": "职业",
+    "Professions": "专业",
+    "Druid": "德鲁伊",
+    "Hunter": "猎人",
+    "Mage": "法师",
+    "Paladin": "圣骑士",
+    "Priest": "牧师",
+    "Rogue": "潜行者",
+    "Shaman": "萨满祭司",
+    "Warlock": "术士",
+    "Warrior": "战士",
+    "Alchemy": "炼金术",
+    "Blacksmithing": "锻造",
+    "Cooking": "烹饪",
+    "Engineering": "工程学",
+    "First Aid": "急救",
+    "Fishing": "钓鱼",
+    "Herbalism": "草药学",
+    "Leatherworking": "制皮",
+    "Tailoring": "裁缝",
+    "Class Skills": "职业技能",
+    "Pet Skills": "宠物技能",
+    "Professions Skills": "专业技能",
+    "Secondary Skills": "辅助技能",
+    "Armor Proficiencies": "护甲熟练度",
+    "Weapon Skills": "武器技能",
+    "Languages": "语言",
+    "Mounts": "坐骑",
+    "Companions": "伙伴",
+    "Uncategorized": "未分类",
+    "Turtle WoW Quests": "乌龟服任务",
+    "Balance": "平衡",
+    "Feral Combat": "野性战斗",
+    "Restoration": "恢复",
+    "Beast Mastery": "野兽控制",
+    "Marksmanship": "射击",
+    "Survival": "生存",
+    "Arcane": "奥术",
+    "Fire": "火焰",
+    "Frost": "冰霜",
+    "Holy": "神圣",
+    "Protection": "防护",
+    "Retribution": "惩戒",
+    "Discipline": "戒律",
+    "Shadow Magic": "暗影魔法",
+    "Assassination": "刺杀",
+    "Combat": "战斗",
+    "Lockpicking": "开锁",
+    "Subtlety": "敏锐",
+    "Elemental Combat": "元素战斗",
+    "Enhancement": "增强",
+    "Affliction": "痛苦",
+    "Demonology": "恶魔学识",
+    "Destruction": "毁灭",
+    "Arms": "武器",
+    "Fury": "狂怒",
+    "Ghoul": "食尸鬼",
+    "Generic": "通用",
+    "Bat": "蝙蝠",
+    "Bear": "熊",
+    "Bird of Prey": "猛禽",
+    "Boar": "野猪",
+    "Carrion Bird": "食腐鸟",
+    "Cat": "猫科",
+    "Chimera": "奇美拉",
+    "Core Hound": "熔岩犬",
+    "Crab": "螃蟹",
+    "Crocolisk": "鳄鱼",
+    "Devilsaur": "魔暴龙",
+    "Dragonhawk": "龙鹰",
+    "Gorilla": "猩猩",
+    "Hyena": "土狼",
+    "Moth": "蛾子",
+    "Nether Ray": "虚空鳐",
+    "Raptor": "迅猛龙",
+    "Ravager": "掠食者",
+    "Rhino": "犀牛",
+    "Scorpid": "蝎子",
+    "Serpent": "蛇",
+    "Silithid": "异种虫",
+    "Spider": "蜘蛛",
+    "Spirit Beast": "灵魂兽",
+    "Sporebat": "孢子蝠",
+    "Tallstrider": "陆行鸟",
+    "Turtle": "乌龟",
+    "Warp Stalker": "迁跃捕猎者",
+    "Wasp": "黄蜂",
+    "Wind Serpent": "风蛇",
+    "Wolf": "狼",
+    "Worm": "蠕虫",
+    "Felguard": "恶魔卫士",
+    "Felhunter": "地狱猎犬",
+    "Imp": "小鬼",
+    "Succubus": "魅魔",
+    "Voidwalker": "虚空行者",
+    "Mining": "采矿",
+    "Skinning": "剥皮",
+    "Riding": "骑术",
+    "Racial Traits": "种族特长",
+    "Armorsmithing": "护甲锻造",
+    "Weaponsmithing": "武器锻造",
+    "Master Axesmithing": "铸斧大师",
+    "Master Hammersmithing": "铸锤大师",
+    "Master Swordsmithing": "铸剑大师",
+    "Gnomish Engineering": "侏儒工程学",
+    "Goblin Engineering": "地精工程学",
+    "Dragonscale Leatherworking": "龙鳞制皮",
+    "Elemental Leatherworking": "元素制皮",
+    "Tribal Leatherworking": "部族制皮",
+    "Mooncloth Tailoring": "月布裁缝",
+    "Shadoweave Tailoring": "暗纹裁缝",
+    "Spellfire Tailoring": "魔焰裁缝",
+    "Humanoid": "人型生物",
+    "Humanoids": "人型生物",
+    "Beast": "野兽",
+    "Beasts": "野兽",
+    "Dragonkin": "龙类",
+    "Demon": "恶魔",
+    "Demons": "恶魔",
+    "Elementals": "元素生物",
+    "Giant": "巨人",
+    "Giants": "巨人",
+    "Undead": "亡灵",
+    "Critter": "小动物",
+    "Critters": "小动物",
+    "Mechanical": "机械",
+    "Mechanicals": "机械",
+    "Small Pets": "小宠物",
+    "Not specified": "未指定",
+    "Totem": "图腾",
+    "Non-combat Pet": "非战斗宠物",
+    "Gas Cloud": "气体云雾",
+    "Herb": "草药",
+    "Vein": "矿脉",
+    "Gathering node": "采集点",
+    "Chest": "胸部",
+    "Door": "门",
+    "Button": "按钮",
+    "Questgiver": "任务给予者",
+    "Book": "书籍",
+    "Trap": "陷阱",
+    "Container": "容器",
+    "Footlockers": "提箱",
+    "Mineral Veins": "矿脉",
+    "Azeroth": "艾泽拉斯",
+    "Eastern Kingdoms": "东部王国",
+    "Kalimdor": "卡利姆多",
+    "Dungeons": "地下城",
+    "Raids": "团队副本",
+    "Battlegrounds": "战场",
+    "All": "全部",
+    "Seasonal": "节日",
+    "Daily Quests": "日常任务",
+    "Epic": "史诗",
+    "Legendary": "传说",
+    "Reputation": "声望",
+    "Ahn'Qiraj War Effort": "安其拉战争物资",
+    "Darkmoon Faire": "暗月马戏团",
+    "Hallow's End": "万圣节",
+    "Lunar Festival": "春节",
+    "Midsummer Fire Festival": "仲夏火焰节",
+    "Alterac Mountains": "奥特兰克山脉",
+    "Arathi Highlands": "阿拉希高地",
+    "Badlands": "荒芜之地",
+    "Blackrock Mountain": "黑石山",
+    "Blasted Lands": "诅咒之地",
+    "Burning Steppes": "燃烧平原",
+    "Deadwind Pass": "逆风小径",
+    "Deeprun Tram": "矿道地铁",
+    "Dun Morogh": "丹莫罗",
+    "Duskwood": "暮色森林",
+    "Eastern Plaguelands": "东瘟疫之地",
+    "Elwynn Forest": "艾尔文森林",
+    "Hillsbrad Foothills": "希尔斯布莱德丘陵",
+    "Ironforge": "铁炉堡",
+    "Loch Modan": "洛克莫丹",
+    "Redridge Mountains": "赤脊山",
+    "Searing Gorge": "灼热峡谷",
+    "Silverpine Forest": "银松森林",
+    "Stormwind City": "暴风城",
+    "Stranglethorn Vale": "荆棘谷",
+    "Swamp of Sorrows": "悲伤沼泽",
+    "The Hinterlands": "辛特兰",
+    "Tirisfal Glades": "提瑞斯法林地",
+    "Undercity": "幽暗城",
+    "Western Plaguelands": "西瘟疫之地",
+    "Westfall": "西部荒野",
+    "Wetlands": "湿地",
+    "Ashenvale": "灰谷",
+    "Azshara": "艾萨拉",
+    "Darkshore": "黑海岸",
+    "Darnassus": "达纳苏斯",
+    "Desolace": "凄凉之地",
+    "Durotar": "杜隆塔尔",
+    "Dustwallow Marsh": "尘泥沼泽",
+    "Felwood": "费伍德森林",
+    "Feralas": "菲拉斯",
+    "Moonglade": "月光林地",
+    "Mulgore": "莫高雷",
+    "Orgrimmar": "奥格瑞玛",
+    "Silithus": "希利苏斯",
+    "Stonetalon Mountains": "石爪山脉",
+    "Tanaris": "塔纳利斯",
+    "Teldrassil": "泰达希尔",
+    "The Barrens": "贫瘠之地",
+    "Thousand Needles": "千针石林",
+    "Thunder Bluff": "雷霆崖",
+    "Timbermaw Hold": "木喉要塞",
+    "Un'Goro Crater": "安戈洛环形山",
+    "Winterspring": "冬泉谷",
+    "Blackfathom Deeps": "黑暗深渊",
+    "Blackrock Depths": "黑石深渊",
+    "Blackrock Spire": "黑石塔",
+    "Dire Maul": "厄运之槌",
+    "Gnomeregan": "诺莫瑞根",
+    "Maraudon": "玛拉顿",
+    "Ragefire Chasm": "怒焰裂谷",
+    "Razorfen Downs": "剃刀高地",
+    "Razorfen Kraul": "剃刀沼泽",
+    "Scarlet Monastery": "血色修道院",
+    "Scholomance": "通灵学院",
+    "Shadowfang Keep": "影牙城堡",
+    "Stratholme": "斯坦索姆",
+    "The Deadmines": "死亡矿井",
+    "The Stockade": "暴风城监狱",
+    "Uldaman": "奥达曼",
+    "Wailing Caverns": "哀嚎洞穴",
+    "Zul'Farrak": "祖尔法拉克",
+    "Blackwing Lair": "黑翼之巢",
+    "Molten Core": "熔火之心",
+    "Naxxramas": "纳克萨玛斯",
+    "Onyxia's Lair": "奥妮克希亚的巢穴",
+    "Ruins of Ahn'Qiraj": "安其拉废墟",
+    "Temple of Ahn'Qiraj": "安其拉神殿",
+    "Zul'Gurub": "祖尔格拉布",
+    "Arathi Basin": "阿拉希盆地",
+    "Alterac Valley": "奥特兰克山谷",
+    "Warsong Gulch": "战歌峡谷",
+    "Level": "等级",
+    "Req.": "需求",
+    "Requires level": "需求等级",
+    "Required Level": "需求等级",
+    "Item Level": "物品等级",
+    "Quest Level": "任务等级",
+    "Side": "阵营",
+    "Start": "开始",
+    "End": "结束",
+    "Sharable": "可共享",
+    "Allowable Races": "可用种族",
+    "Race Mask": "种族掩码",
+    "Allowable Classes": "可用职业",
+    "Class Mask": "职业掩码",
+    "Start Script": "开始脚本",
+    "Complete Script": "完成脚本",
+    "Group": "分组",
+    "Buy for": "买入价格",
+    "Sells for": "卖出价格",
+    "Display ID": "显示 ID",
+    "DisplayId": "显示 ID",
+    "Disenchant ID": "分解 ID",
+    "Script Name": "脚本名",
+    "Quality": "品质",
+    "Slot": "部位",
+    "Armor Type": "护甲类型",
+    "Type": "类型",
+    "School": "系别",
+    "Cost": "消耗",
+    "Range": "距离",
+    "Cast Time": "施法时间",
+    "Cooldown": "冷却",
+    "Class": "分类",
+    "React": "反应",
+    "Faction": "阵营",
+    "Faction ID": "阵营 ID",
+    "Health": "生命值",
+    "Mana": "法力值",
+    "Wealth": "财富",
+    "Damage": "伤害",
+    "Armor": "护甲",
+    "Equipment ID": "装备 ID",
+    "NPC flags": "NPC 标记",
+    "Name": "名称",
+    "Description": "描述",
+    "Source": "来源",
+    "Location": "位置",
+    "Skill": "技能",
+    "Duration": "持续时间",
+    "Mechanic": "机制",
+    "Dispel type": "驱散类型",
+    "Category Cooldown": "分类冷却",
+    "Effect #1": "效果 #1",
+    "Effect #2": "效果 #2"
+  };
+  return labels[label] || label;
+}
+
+function pathLabel(label, href = "") {
+  if (state.lang === "zhCN" && String(href || "").startsWith("?objects")) {
+    const objectLabels = {
+      "Chest": "宝箱",
+      "Book": "书籍",
+      "Button": "按钮",
+      "Door": "门",
+      "Trap": "陷阱",
+      "Container": "容器"
+    };
+    if (objectLabels[label]) return objectLabels[label];
+  }
+  return uiLabel(label);
+}
+
+function listTypeLabel(listType) {
+  return {
+    items: pathLabel("Items"),
+    itemsets: pathLabel("Item Sets"),
+    npcs: pathLabel("NPCs"),
+    objects: pathLabel("Objects"),
+    quests: pathLabel("Quests"),
+    spells: pathLabel("Spells"),
+    factions: pathLabel("Factions")
+  }[listType] || listType;
+}
+
+function localizeItemAttributeText(value) {
+  const raw = String(value == null ? "" : value);
+  if (state.lang !== "zhCN" || !raw) return raw;
+  const exact = {
+    "Poor": "粗糙",
+    "Common": "普通",
+    "Uncommon": "优秀",
+    "Rare": "精良",
+    "Epic": "史诗",
+    "Legendary": "传说",
+    "Artifact": "神器",
+    "All": "全部",
+    "Cloth": "布甲",
+    "Leather": "皮甲",
+    "Mail": "锁甲",
+    "Plate": "板甲",
+    "Shield": "盾牌",
+    "Shields": "盾牌",
+    "Head": "头部",
+    "Neck": "颈部",
+    "Shoulder": "肩部",
+    "Back": "背部",
+    "Chest": "胸部",
+    "Shirt": "衬衣",
+    "Tabard": "战袍",
+    "Wrist": "手腕",
+    "Hands": "手",
+    "Waist": "腰部",
+    "Legs": "腿部",
+    "Feet": "脚",
+    "Finger": "手指",
+    "Trinket": "饰品",
+    "One-Hand": "单手",
+    "Two-Hand": "双手",
+    "Main Hand": "主手",
+    "Off Hand": "副手",
+    "Held In Off-hand": "副手物品",
+    "Ranged": "远程",
+    "Projectile": "弹药",
+    "Relic": "圣物",
+    "Axe": "斧",
+    "Sword": "剑",
+    "Mace": "锤",
+    "Polearm": "长柄武器",
+    "Staff": "法杖",
+    "Dagger": "匕首",
+    "Fist Weapon": "拳套",
+    "Bow": "弓",
+    "Gun": "枪械",
+    "Crossbow": "弩",
+    "Wand": "魔杖",
+    "Binds when picked up": "拾取后绑定",
+    "Binds when equipped": "装备后绑定",
+    "Binds when used": "使用后绑定",
+    "Unique": "唯一",
+    "Unique-Equipped": "唯一装备",
+    "Soulbound": "已绑定",
+    "Strength": "力量",
+    "Agility": "敏捷",
+    "Stamina": "耐力",
+    "Intellect": "智力",
+    "Spirit": "精神",
+    "Defense": "防御",
+    "Fire Resistance": "火焰抗性",
+    "Nature Resistance": "自然抗性",
+    "Frost Resistance": "冰霜抗性",
+    "Shadow Resistance": "暗影抗性",
+    "Arcane Resistance": "奥术抗性",
+    "Resistance": "抗性"
+  };
+  const trimmed = raw.trim();
+  if (exact[trimmed]) return raw.replace(trimmed, exact[trimmed]);
+  return raw
+    .replace(/\bBinds when picked up\b/g, "拾取后绑定")
+    .replace(/\bBinds when equipped\b/g, "装备后绑定")
+    .replace(/\bBinds when used\b/g, "使用后绑定")
+    .replace(/\bUnique-Equipped\b/g, "唯一装备")
+    .replace(/\bUnique\b/g, "唯一")
+    .replace(/\bSoulbound\b/g, "已绑定")
+    .replace(/\bEquip:\s*/g, "装备：")
+    .replace(/\bUse:\s*/g, "使用：")
+    .replace(/\bIncreases your chance to hit by ([\d.]+)%/gi, "使你的命中几率提高 $1%")
+    .replace(/\bImproves your chance to hit by ([\d.]+)%/gi, "使你的命中几率提高 $1%")
+    .replace(/\bImproves your chance to get a critical strike by ([\d.]+)%/gi, "使你的爆击几率提高 $1%")
+    .replace(/\bIncreases your chance to get a critical strike by ([\d.]+)%/gi, "使你的爆击几率提高 $1%")
+    .replace(/\bIncreases damage and healing done by magical spells and effects by up to ([\d,]+)\./gi, "使法术和魔法效果造成的伤害和治疗效果最多提高 $1 点。")
+    .replace(/\bIncreases healing done by spells and effects by up to ([\d,]+)\./gi, "使法术和效果的治疗量最多提高 $1 点。")
+    .replace(/\bRestores ([\d,]+) mana per 5 sec\./gi, "每5秒回复 $1 点法力。")
+    .replace(/\bIncreases attack power by ([\d,]+)\./gi, "攻击强度提高 $1 点。")
+    .replace(/\bIncreases ranged attack power by ([\d,]+)\./gi, "远程攻击强度提高 $1 点。")
+    .replace(/\bImproves spell critical strike chance by ([\d.]+)%/gi, "法术爆击几率提高 $1%")
+    .replace(/\bImproves spell hit chance by ([\d.]+)%/gi, "法术命中几率提高 $1%")
+    .replace(/\bItem Level\b/g, "物品等级")
+    .replace(/\bAll\b/g, "全部")
+    .replace(/\bRequires Level\b/g, "需要等级")
+    .replace(/\bRequires\b/g, "需要")
+    .replace(/\bDurability\b/g, "耐久度")
+    .replace(/\bFire Resistance\b/g, "火焰抗性")
+    .replace(/\bNature Resistance\b/g, "自然抗性")
+    .replace(/\bFrost Resistance\b/g, "冰霜抗性")
+    .replace(/\bShadow Resistance\b/g, "暗影抗性")
+    .replace(/\bArcane Resistance\b/g, "奥术抗性")
+    .replace(/\bResistance\b/g, "抗性")
+    .replace(/\bStrength\b/g, "力量")
+    .replace(/\bAgility\b/g, "敏捷")
+    .replace(/\bStamina\b/g, "耐力")
+    .replace(/\bIntellect\b/g, "智力")
+    .replace(/\bSpirit\b/g, "精神")
+    .replace(/\bRanged Attack Power\b/g, "远程攻击强度")
+    .replace(/\bFeral Attack Power\b/g, "野性攻击强度")
+    .replace(/\bAttack Power\b/g, "攻击强度")
+    .replace(/\bSpell Damage and Healing\b/g, "法术伤害和治疗效果")
+    .replace(/\bSpell Damage\b/g, "法术伤害")
+    .replace(/\bHealing Spells\b/g, "治疗法术")
+    .replace(/\bHealing\b/g, "治疗效果")
+    .replace(/\bMana Regen\b/g, "法力回复")
+    .replace(/\bMana per 5 sec\.\b/g, "每5秒回复法力")
+    .replace(/\bHealth per 5 sec\.\b/g, "每5秒回复生命")
+    .replace(/\bCritical Strike Rating\b/g, "爆击等级")
+    .replace(/\bSpell Critical Strike\b/g, "法术爆击")
+    .replace(/\bCritical Strike\b/g, "爆击")
+    .replace(/\bHit Rating\b/g, "命中等级")
+    .replace(/\bSpell Hit\b/g, "法术命中")
+    .replace(/\bHit\b/g, "命中")
+    .replace(/\bDodge\b/g, "躲闪")
+    .replace(/\bParry\b/g, "招架")
+    .replace(/\bDefense Rating\b/g, "防御等级")
+    .replace(/\bDefense\b/g, "防御")
+    .replace(/\bResilience\b/g, "韧性")
+    .replace(/\bArmor Penetration\b/g, "护甲穿透")
+    .replace(/\bArmor\b/g, "护甲")
+    .replace(/\bBlock\b/g, "格挡")
+    .replace(/\bDamage Per Second\b/g, "每秒伤害")
+    .replace(/\bDamage\b/g, "伤害")
+    .replace(/\bSpeed\b/g, "速度")
+    .replace(/\bClasses\b/g, "职业")
+    .replace(/\bClass\b/g, "职业")
+    .replace(/\bRaces\b/g, "种族")
+    .replace(/\bRace\b/g, "种族")
+    .replace(/\bCloth\b/g, "布甲")
+    .replace(/\bLeather\b/g, "皮甲")
+    .replace(/\bMail\b/g, "锁甲")
+    .replace(/\bPlate\b/g, "板甲")
+    .replace(/\bShield\b/g, "盾牌")
+    .replace(/\bHead\b/g, "头部")
+    .replace(/\bNeck\b/g, "颈部")
+    .replace(/\bShoulder\b/g, "肩部")
+    .replace(/\bBack\b/g, "背部")
+    .replace(/\bChest\b/g, "胸部")
+    .replace(/\bWrist\b/g, "手腕")
+    .replace(/\bHands\b/g, "手")
+    .replace(/\bWaist\b/g, "腰部")
+    .replace(/\bLegs\b/g, "腿部")
+    .replace(/\bFeet\b/g, "脚")
+    .replace(/\bFinger\b/g, "手指")
+    .replace(/\bTrinket\b/g, "饰品")
+    .replace(/\bMain Hand\b/g, "主手")
+    .replace(/\bOff Hand\b/g, "副手")
+    .replace(/\bOne-Hand\b/g, "单手")
+    .replace(/\bTwo-Hand\b/g, "双手")
+    .replace(/\bHeld In Off-hand\b/g, "副手物品")
+    .replace(/\bFist Weapon\b/g, "拳套")
+    .replace(/\bPolearm\b/g, "长柄武器")
+    .replace(/\bStaff\b/g, "法杖")
+    .replace(/\bDagger\b/g, "匕首")
+    .replace(/\bCrossbow\b/g, "弩")
+    .replace(/\bWand\b/g, "魔杖")
+    .replace(/\bAxe\b/g, "斧")
+    .replace(/\bSword\b/g, "剑")
+    .replace(/\bMace\b/g, "锤")
+    .replace(/\bBow\b/g, "弓")
+    .replace(/\bGun\b/g, "枪械")
+    .replace(/\bPoor\b/g, "粗糙")
+    .replace(/\bCommon\b/g, "普通")
+    .replace(/\bUncommon\b/g, "优秀")
+    .replace(/\bRare\b/g, "精良")
+    .replace(/\bEpic\b/g, "史诗")
+    .replace(/\bLegendary\b/g, "传说")
+    .replace(/\bArtifact\b/g, "神器");
+}
+
+function localizeItemAttributeHtml(htmlText) {
+  if (state.lang !== "zhCN") return String(htmlText || "");
+  return localizeItemAttributeText(htmlText);
+}
+
+function cloneMenuArray(menu) {
+  return (menu || []).map((entry) => {
+    if (!Array.isArray(entry)) return entry;
+    return entry.map((value, index) => {
+      if (index === 3 && Array.isArray(value)) return cloneMenuArray(value);
+      return value;
+    });
+  });
+}
+
+function restoreMenuArray(target, source) {
+  if (!Array.isArray(target) || !Array.isArray(source)) return;
+  target.splice(0, target.length, ...cloneMenuArray(source));
+}
+
+function localizeMenuArray(menu) {
+  (menu || []).forEach((entry) => {
+    if (!Array.isArray(entry)) return;
+    if (entry._originalLabel == null && typeof entry[1] === "string") entry._originalLabel = entry[1];
+    if (entry._originalSubLabel == null && typeof entry[4] === "string") entry._originalSubLabel = entry[4];
+    if (typeof entry[1] === "string") {
+      const original = entry._originalLabel || entry[1];
+      entry[1] = state.lang === "zhCN" ? pathLabel(original, entry[2]) : original;
+    }
+    if (typeof entry[4] === "string") {
+      const original = entry._originalSubLabel || entry[4];
+      entry[4] = state.lang === "zhCN" ? pathLabel(original, entry[2]) : original;
+    }
+    if (Array.isArray(entry[3])) localizeMenuArray(entry[3]);
+  });
+}
+
+function syncBrowseMenus() {
+  if (typeof window === "undefined" || typeof mn_path === "undefined") return;
+  if (!state.originalMenus) {
+    state.originalMenus = {
+      mn_path: cloneMenuArray(mn_path),
+      mn_database: cloneMenuArray(typeof mn_database === "undefined" ? [] : mn_database),
+      mn_items: cloneMenuArray(typeof mn_items === "undefined" ? [] : mn_items),
+      mn_npcs: cloneMenuArray(typeof mn_npcs === "undefined" ? [] : mn_npcs),
+      mn_objects: cloneMenuArray(typeof mn_objects === "undefined" ? [] : mn_objects),
+      mn_quests: cloneMenuArray(typeof mn_quests === "undefined" ? [] : mn_quests),
+      mn_spells: cloneMenuArray(typeof mn_spells === "undefined" ? [] : mn_spells)
+    };
+  }
+  restoreMenuArray(mn_path, state.originalMenus.mn_path);
+  if (typeof mn_database !== "undefined") restoreMenuArray(mn_database, state.originalMenus.mn_database);
+  if (typeof mn_items !== "undefined") restoreMenuArray(mn_items, state.originalMenus.mn_items);
+  if (typeof mn_npcs !== "undefined") restoreMenuArray(mn_npcs, state.originalMenus.mn_npcs);
+  if (typeof mn_objects !== "undefined") restoreMenuArray(mn_objects, state.originalMenus.mn_objects);
+  if (typeof mn_quests !== "undefined") restoreMenuArray(mn_quests, state.originalMenus.mn_quests);
+  if (typeof mn_spells !== "undefined") restoreMenuArray(mn_spells, state.originalMenus.mn_spells);
+  if (state.lang === "zhCN") {
+    localizeMenuArray(mn_path);
+    if (typeof mn_database !== "undefined") localizeMenuArray(mn_database);
+    if (typeof mn_items !== "undefined") localizeMenuArray(mn_items);
+    if (typeof mn_npcs !== "undefined") localizeMenuArray(mn_npcs);
+    if (typeof mn_objects !== "undefined") localizeMenuArray(mn_objects);
+    if (typeof mn_quests !== "undefined") localizeMenuArray(mn_quests);
+    if (typeof mn_spells !== "undefined") localizeMenuArray(mn_spells);
+  }
+}
+
+function rerenderBrowseHeader() {
+  syncBrowseMenus();
+  if (typeof window === "undefined") return;
+  const tabsHost = document.getElementById("toptabs-right-generic");
+  const buttonsHost = document.getElementById("menu-buttons-generic");
+  if (tabsHost) tabsHost.innerHTML = "";
+  if (buttonsHost) buttonsHost.innerHTML = "";
+  if (window.Menu && typeof window.Menu._hide === "function") window.Menu._hide();
+  if (typeof window.g_initHeader === "function") window.g_initHeader(0);
 }
 
 function escapeHtml(value) {
@@ -226,24 +966,24 @@ function normalizeIconName(iconName) {
 function localItemTooltipHtml(item) {
   const quality = Number(item.quality_class ?? item.quality ?? 1);
   const name = escapeHtml(item.name || `${item.id}`);
-  const slotText = String(item.tooltip_slot_text || item.slot_text || item.slot || "").trim();
-  const typeText = String(item.tooltip_type_text || item.type_text || item.armor_type || "").trim();
-  const damageText = String(item.tooltip_damage_text || item.damage_text || "").trim();
-  const speedText = String(item.tooltip_speed_text || item.speed_text || "").trim();
-  const dpsText = String(item.tooltip_dps_text || item.dps_text || "").trim();
-  const durabilityText = String(item.tooltip_durability_text || item.durability_text || "").trim();
-  const preHtml = normalizeTooltipPreHtml(item.tooltip_pre_html || item.pre_html);
-  const bonusHtml = String(item.tooltip_bonus_html || item.bonus_html || "").trim();
-  const effectHtml = String(item.tooltip_effect_html || item.effect_html || "").trim();
-  const itemLevel = item.level || item.item_level ? `<br><span class="q0">Item Level ${escapeHtml(String(item.level || item.item_level))}</span>` : "";
-  const requiredLevel = item.required_level || item.reqlevel ? `Requires Level ${escapeHtml(String(item.required_level || item.reqlevel))}<br>` : "";
+  const slotText = localizeItemAttributeText(String(item.tooltip_slot_text || item.slot_text || item.slot || "").trim());
+  const typeText = localizeItemAttributeText(String(item.tooltip_type_text || item.type_text || item.armor_type || "").trim());
+  const damageText = localizeItemAttributeText(String(item.tooltip_damage_text || item.damage_text || "").trim());
+  const speedText = localizeItemAttributeText(String(item.tooltip_speed_text || item.speed_text || "").trim());
+  const dpsText = localizeItemAttributeText(String(item.tooltip_dps_text || item.dps_text || "").trim());
+  const durabilityText = localizeItemAttributeText(String(item.tooltip_durability_text || item.durability_text || "").trim());
+  const preHtml = localizeItemAttributeHtml(normalizeTooltipPreHtml(item.tooltip_pre_html || item.pre_html));
+  const bonusHtml = localizeItemAttributeHtml(String(item.tooltip_bonus_html || item.bonus_html || "").trim());
+  const effectHtml = localizeItemAttributeHtml(String(item.tooltip_effect_html || item.effect_html || "").trim());
+  const itemLevel = item.level || item.item_level ? `<br><span class="q0">${escapeHtml(uiLabel("Item Level"))} ${escapeHtml(String(item.level || item.item_level))}</span>` : "";
+  const requiredLevel = item.required_level || item.reqlevel ? `${escapeHtml(state.lang === "zhCN" ? uiLabel("Required Level") : "Requires Level")} ${escapeHtml(String(item.required_level || item.reqlevel))}<br>` : "";
   return `<table><tr><td><table><tr><td>
     <b class="q${quality}">${name}</b>${itemLevel}<br>
     ${preHtml}
     ${slotText || typeText ? `<table width="100%"><tr><td>${escapeHtml(slotText)}</td><th>${escapeHtml(typeText)}</th></tr></table>` : ""}
     ${damageText || speedText ? `<table width="100%"><tr><td>${escapeHtml(damageText)}</td><th>${escapeHtml(speedText)}</th></tr></table>` : ""}
     ${dpsText ? `(${escapeHtml(dpsText)})<br>` : ""}
-    ${durabilityText ? `Durability ${escapeHtml(durabilityText)}<br>` : ""}
+    ${durabilityText ? `${escapeHtml(state.lang === "zhCN" ? "耐久度" : "Durability")} ${escapeHtml(durabilityText)}<br>` : ""}
     ${bonusHtml}
     ${!bonusHtml && requiredLevel ? requiredLevel : ""}
     ${effectHtml}
@@ -396,6 +1136,9 @@ function setStatus(message, isError = false) {
 function updateLangButtons() {
   el.langEn.classList.toggle("active", state.lang === "enUS");
   el.langZh.classList.toggle("active", state.lang === "zhCN");
+  if (el.input) el.input.placeholder = t("searchPlaceholder");
+  if (el.searchButton) el.searchButton.textContent = t("searchButton");
+  rerenderBrowseHeader();
 }
 
 async function ensureDb() {
@@ -660,7 +1403,7 @@ function entityPathMatches(pathJson, parts, startIndex = 2) {
 
 function browseBreadcrumb(pathIds, fallbackName, fallbackHref) {
   const links = resolveMenuPath(pathIds);
-  return renderBreadcrumbFromLinks(links) || `<div class="path"><a href=".">Database</a> &raquo; <a href="${escapeHtml(fallbackHref)}">${escapeHtml(fallbackName)}</a></div>`;
+  return renderBreadcrumbFromLinks(links) || `<div class="path"><a href=".">${escapeHtml(pathLabel("Database"))}</a> &raquo; <a href="${escapeHtml(fallbackHref)}">${escapeHtml(pathLabel(fallbackName, fallbackHref))}</a></div>`;
 }
 
 function firstPathPart(pathJson, index = 2, fallback = 0) {
@@ -866,9 +1609,9 @@ async function searchListviewConfigs(queryText) {
     configs.push({
       template: "item",
       id: "items",
-      name: "Items",
+      name: t("type_item"),
       data: items.map((x) => ({
-        type_text: searchItemTypeText(x),
+        type_text: localizeItemAttributeText(searchItemTypeText(x)),
         id: String(x.id),
         name: listviewItemName(x.name, x.quality_class),
         level: x.level,
@@ -879,7 +1622,7 @@ async function searchListviewConfigs(queryText) {
       })),
       hiddenCols: ["source", "type", "quality"],
       extraCols: (typeof Listview !== "undefined" && Listview.funcBox)
-        ? [{ id: "quality", name: "Quality", hidden: true, value: "quality" }, Listview.funcBox.createSimpleCol("type_text", "type", "12%", "type_text"), { id: "description", name: "Description", width: "30%", value: "description" }]
+        ? [{ id: "quality", name: uiLabel("Quality"), hidden: true, value: "quality" }, Listview.funcBox.createSimpleCol("type_text", uiLabel("Type"), "12%", "type_text"), { id: "description", name: t("description"), width: "30%", value: "description" }]
         : undefined,
       sort: ["-quality", "name"]
     });
@@ -888,7 +1631,7 @@ async function searchListviewConfigs(queryText) {
     configs.push({
       template: "npc",
       id: "npcs",
-      name: "NPCs",
+      name: t("type_npc"),
       data: npcs.map((x) => ({
         id: String(x.id),
         name: x.name,
@@ -903,7 +1646,7 @@ async function searchListviewConfigs(queryText) {
     configs.push({
       template: "object",
       id: "objects",
-      name: "Objects",
+      name: t("type_object"),
       data: objects.map((x) => ({ id: String(x.id), name: x.name, type: x.type })),
       sort: ["name"]
     });
@@ -912,7 +1655,7 @@ async function searchListviewConfigs(queryText) {
     configs.push({
       template: "quest",
       id: "quests",
-      name: "Quests",
+      name: t("type_quest"),
       data: quests.map((x) => {
         const category = questCategoryFromPath(x.path_json, x.category);
         return {
@@ -936,7 +1679,7 @@ async function searchListviewConfigs(queryText) {
     configs.push({
       template: "spell",
       id: "uncategorized-spells",
-      name: "Uncategorized spells",
+      name: t("uncategorizedSpells"),
       data: spells.map((x) => ({ id: String(x.id), name: listviewSpellName(x.name), level: x.level, school: x.school, rank: x.rank || "", reagents: spellReagentMap.get(Number(x.id)) })),
       visibleCols: ["level"],
       hiddenCols: ["skill", "school"],
@@ -954,7 +1697,7 @@ async function renderSearchResultsPage(queryText) {
   el.detail.innerHTML = `
     <div class="text detail-page">
       <a href="https://www.wowhead.com/search?q=${encodeURIComponent(queryText)}" target="_blank" class="button-red"><div><blockquote><i>Wowhead</i></blockquote><span>Wowhead</span></div></a>
-      <h1>Search Results</h1>
+      <h1>${escapeHtml(t("searchResults"))}</h1>
     </div>
   `;
   renderRelatedListviews(configs);
@@ -971,6 +1714,49 @@ function renderRelatedQuests(rows) {
     return `<div class="meta"><a href="?quest=${encodeURIComponent(String(row.id))}">${escapeHtml(row.name)}</a>${tagText ? ` - ${escapeHtml(tagText)}` : ""}</div>`;
   }).join("");
   return `<div class="block-title">${escapeHtml(t("relatedQuests"))}</div>${links}`;
+}
+
+function homeBrowseLink(href, label, description = "") {
+  return `<a class="home-browse-link" href="${escapeHtml(href)}"><b>${escapeHtml(label)}</b>${description ? `<span>${escapeHtml(description)}</span>` : ""}</a>`;
+}
+
+function renderHomeBrowse() {
+  const mainLinks = [
+    ["?items", pathLabel("Items"), state.lang === "zhCN" ? "装备、材料、配方" : "Equipment, materials, recipes"],
+    ["?itemsets", pathLabel("Item Sets"), state.lang === "zhCN" ? "套装与套装奖励" : "Sets and bonuses"],
+    ["?npcs", pathLabel("NPCs"), state.lang === "zhCN" ? "生物、首领、商人" : "Creatures, bosses, vendors"],
+    ["?objects", pathLabel("Objects"), state.lang === "zhCN" ? "箱子、矿点、草药" : "Chests, veins, herbs"],
+    ["?quests", pathLabel("Quests"), state.lang === "zhCN" ? "任务与奖励" : "Quests and rewards"],
+    ["?spells", pathLabel("Spells"), state.lang === "zhCN" ? "技能、专业、法术" : "Skills, professions, spells"],
+    ["?factions", pathLabel("Factions"), state.lang === "zhCN" ? "声望阵营" : "Reputation factions"]
+  ];
+  const popular = [
+    ["?items=2", pathLabel("Weapons")],
+    ["?items=4", pathLabel("Armor")],
+    ["?items=9", pathLabel("Recipes")],
+    ["?items=0", pathLabel("Consumables")],
+    ["?items=7", pathLabel("Trade Goods")],
+    ["?quests=0", pathLabel("Eastern Kingdoms")],
+    ["?quests=1", pathLabel("Kalimdor")],
+    ["?quests=2", pathLabel("Dungeons")],
+    ["?spells=7", pathLabel("Class Skills")],
+    ["?spells=11", pathLabel("Professions")],
+    ["?npcs=7", pathLabel("Humanoids")],
+    ["?objects=-4", pathLabel("Mineral Veins")]
+  ];
+  el.detail.innerHTML = `
+    <div class="home-browse">
+      <h2>${escapeHtml(t("browseDatabase"))}</h2>
+      <p>${escapeHtml(t("browseHint"))}</p>
+      <div class="home-browse-grid">
+        ${mainLinks.map(([href, label, description]) => homeBrowseLink(href, label, description)).join("")}
+      </div>
+      <h3>${escapeHtml(t("popularBrowse"))}</h3>
+      <div class="home-browse-popular">
+        ${popular.map(([href, label]) => homeBrowseLink(href, label)).join("")}
+      </div>
+    </div>
+  `;
 }
 
 function resetRelatedListviews() {
@@ -1000,14 +1786,35 @@ function renderRelatedListviews(configs) {
     if (cfg.hiddenCols) options.hiddenCols = cfg.hiddenCols;
     if (cfg.sort) options.sort = cfg.sort;
     new Listview(options);
+    localizeListviewHeaders();
   }
   tabsRelated.flush();
+  localizeListviewHeaders();
+}
+
+function localizeListviewHeaders() {
+  if (state.lang !== "zhCN") return;
+  document.querySelectorAll("#listview-generic th a span, #listview-generic th span").forEach((node) => {
+    const raw = (node.textContent || "").trim();
+    if (!raw) return;
+    const translated = uiLabel(raw);
+    if (translated !== raw) node.textContent = translated;
+  });
+  document.querySelectorAll("#listview-generic td a, #listview-generic td span").forEach((node) => {
+    const raw = (node.textContent || "").trim();
+    if (!raw) return;
+    const translated = localizeItemAttributeText(raw);
+    if (translated !== raw) node.textContent = translated;
+  });
 }
 
 function renderInfobox(facts, tailHtml = "", extraRowsHtml = "") {
   const rows = facts
     .filter((f) => f && f.label && f.value != null && f.value !== "")
-    .map((f) => `<li><div>${escapeHtml(f.label)}${f.noColon ? "" : `: ${f.html ? f.value : escapeHtml(f.value)}`}</div></li>`)
+    .map((f) => {
+      const value = f.html ? f.value : escapeHtml(localizeItemAttributeText(f.value));
+      return `<li><div>${escapeHtml(uiLabel(f.label))}${f.noColon ? "" : `: ${value}`}</div></li>`;
+    })
     .join("");
   if (!rows) return "";
   return `<table class="infobox"><tr><th>${escapeHtml(t("quickFacts"))}</th></tr><tr><td><div class="infobox-spacer"></div><ul>${rows}</ul>${tailHtml || ""}</td></tr>${extraRowsHtml || ""}</table>`;
@@ -1075,6 +1882,40 @@ function itemQualityColor(qualityClass) {
 
 function listviewTabName(id, template) {
   const lang = typeof LANG !== "undefined" ? LANG : {};
+  if (state.lang === "zhCN") {
+    const zhNames = {
+      "dropped-by": "掉落自",
+      drop: "掉落",
+      abilities: "技能",
+      "contained-in-object": "包含于物体",
+      "contained-in-item": "包含于物品",
+      "objective-of": "任务目标",
+      "reward-of": "任务奖励",
+      "sold-by": "出售者",
+      sells: "出售",
+      "created-by": "制造来源",
+      "reagent-for": "作为材料",
+      "used-by-item": "被物品使用",
+      "taught-by-npc": "训练师",
+      "taught-by-item": "由物品教授",
+      "taught-by-quest": "由任务教授",
+      "reward-for-quest": "任务奖励",
+      starts: "起始",
+      ends: "结束",
+      contains: "包含",
+      "pick-pocketed-from": "偷窃自",
+      "pick-pocketing": "可偷窃",
+      unlocks: "解锁",
+      "skinned-from": "剥皮自",
+      skinning: "剥皮",
+      "mined-from-object": "采矿自",
+      disenchanting: "分解",
+      "gathered-from-object": "采集自",
+      "teaches-recipe": "教授配方",
+      "fished-in": "钓鱼地点"
+    };
+    return zhNames[id] || zhNames[template] || pathLabel(id.replace(/-/g, " "));
+  }
   const names = {
     "dropped-by": lang.tab_droppedby,
     drop: lang.tab_drops,
@@ -1539,19 +2380,19 @@ function renderItemTooltipBlock(row, factMap = {}) {
   if (!row) return "";
   const qClass = row.quality_class || "1";
   const tooltipId = `tooltip${String(row.id)}-generic`;
-  const slotText = String(row.tooltip_slot_text || row.slot || "").trim();
-  const typeText = String(row.tooltip_type_text || row.armor_type || "").trim();
-  const damageText = String(row.tooltip_damage_text || "").trim();
-  const speedText = String(row.tooltip_speed_text || "").trim();
-  const dpsText = String(row.tooltip_dps_text || "").trim();
-  const durabilityText = String(row.tooltip_durability_text || "").trim();
-  const preHtml = normalizeTooltipPreHtml(row.tooltip_pre_html);
-  const bonusHtml = String(row.tooltip_bonus_html || "").trim();
-  const effectHtml = String(row.tooltip_effect_html || "").trim();
-  const bindText = factMap["Binds when equipped"] ? "Binds when equipped" : (factMap["Binds when picked up"] ? "Binds when picked up" : "");
-  const armorLine = factMap.Armor || "";
-  const durabilityLine = factMap.Durability || "";
-  const requireLine = factMap["Requires Level"] || (row.required_level != null ? `Requires Level ${row.required_level}` : "");
+  const slotText = localizeItemAttributeText(String(row.tooltip_slot_text || row.slot || "").trim());
+  const typeText = localizeItemAttributeText(String(row.tooltip_type_text || row.armor_type || "").trim());
+  const damageText = localizeItemAttributeText(String(row.tooltip_damage_text || "").trim());
+  const speedText = localizeItemAttributeText(String(row.tooltip_speed_text || "").trim());
+  const dpsText = localizeItemAttributeText(String(row.tooltip_dps_text || "").trim());
+  const durabilityText = localizeItemAttributeText(String(row.tooltip_durability_text || "").trim());
+  const preHtml = localizeItemAttributeHtml(normalizeTooltipPreHtml(row.tooltip_pre_html));
+  const bonusHtml = localizeItemAttributeHtml(String(row.tooltip_bonus_html || "").trim());
+  const effectHtml = localizeItemAttributeHtml(String(row.tooltip_effect_html || "").trim());
+  const bindText = localizeItemAttributeText(factMap["Binds when equipped"] ? "Binds when equipped" : (factMap["Binds when picked up"] ? "Binds when picked up" : ""));
+  const armorLine = localizeItemAttributeText(factMap.Armor || "");
+  const durabilityLine = localizeItemAttributeText(factMap.Durability || "");
+  const requireLine = localizeItemAttributeText(factMap["Requires Level"] || (row.required_level != null ? `Requires Level ${row.required_level}` : ""));
   return `
     <div id="icon${escapeHtml(String(row.id))}-generic" style="float: left; min-width: 56px; min-height: 56px"></div>
     <div id="${escapeHtml(tooltipId)}" class="tooltip" style="float: left; padding-top: 1px; width: 253px">
@@ -1564,11 +2405,11 @@ function renderItemTooltipBlock(row, factMap = {}) {
               ${slotText || typeText ? `<table width="100%"><tr><td>${escapeHtml(slotText)}</td><th>${escapeHtml(typeText)}</th></tr></table>` : ""}
               ${damageText || speedText ? `<table width="100%"><tr><td>${escapeHtml(damageText)}</td><th>${escapeHtml(speedText)}</th></tr></table>` : ""}
               ${dpsText ? `(${escapeHtml(dpsText)})<br>` : ""}
-              ${durabilityText ? `Durability ${escapeHtml(durabilityText)}<br>` : ""}
+              ${durabilityText ? `${escapeHtml(state.lang === "zhCN" ? "耐久度" : "Durability")} ${escapeHtml(durabilityText)}<br>` : ""}
               ${bonusHtml}
               ${armorLine ? `${escapeHtml(armorLine)}<br>` : ""}
               ${durabilityLine ? `${escapeHtml(durabilityLine)}<br>` : ""}
-              ${!bonusHtml && requireLine && !String(requireLine).toLowerCase().includes("requires level") ? `Requires Level ${escapeHtml(requireLine)}<br>` : ""}
+              ${!bonusHtml && requireLine && !String(requireLine).toLowerCase().includes("requires level") && !String(requireLine).includes("需要等级") ? `${escapeHtml(state.lang === "zhCN" ? "需要等级" : "Requires Level")} ${escapeHtml(requireLine)}<br>` : ""}
             </td></tr></table>
             ${effectHtml ? `<table><tr><td>${effectHtml}</td></tr></table>` : ""}
           </td>
@@ -1836,7 +2677,7 @@ function resolveMenuPath(pathIds) {
 function renderBreadcrumbFromLinks(links) {
   const safeLinks = (links || []).filter((x) => x && x.label);
   if (!safeLinks.length) return "";
-  return `<div class="path">${safeLinks.map((x) => `<a href="${escapeHtml(x.href || ".")}">${escapeHtml(x.label)}</a>`).join(" &raquo; ")}</div>`;
+  return `<div class="path">${safeLinks.map((x) => `<a href="${escapeHtml(x.href || ".")}">${escapeHtml(pathLabel(x.label, x.href))}</a>`).join(" &raquo; ")}</div>`;
 }
 
 function titleCasePlural(type) {
@@ -1870,7 +2711,7 @@ function renderListTable(columns, rows, rowToCells, breadcrumbHtml = "") {
     el.detail.innerHTML = `<div class="meta">${escapeHtml(t("list_no_results"))}</div>`;
     return;
   }
-  const thead = columns.map((c) => `<th><div><a href="javascript:;"><span>${escapeHtml(c)}</span></a></div></th>`).join("");
+  const thead = columns.map((c) => `<th><div><a href="javascript:;"><span>${escapeHtml(uiLabel(c))}</span></a></div></th>`).join("");
   const tbody = rows.map((row) => {
     const cells = rowToCells(row).map((cell, i) => `<td${i === 0 ? ' style="text-align:left"' : ""}>${cell}</td>`).join("");
     return `<tr>${cells}</tr>`;
@@ -1910,6 +2751,7 @@ function renderBrowseListview(config, breadcrumbHtml = "") {
     }));
   }
   new Listview(options);
+  localizeListviewHeaders();
 }
 
 async function renderBrowseList(listType, params = new URLSearchParams(window.location.search)) {
@@ -1992,16 +2834,17 @@ async function renderBrowseList(listType, params = new URLSearchParams(window.lo
         id: "items",
         parent: "listview-generic",
         extraCols: itemPathParts[0] === 4
-          ? [{ id: "quality", name: "Quality", hidden: true, value: "quality" }]
+          ? [{ id: "quality", name: uiLabel("Quality"), hidden: true, value: "quality" }]
           : [
-              { id: "quality", name: "Quality", hidden: true, value: "quality" },
-              Listview.funcBox.createSimpleCol("description", "description", "40%", "description")
+              { id: "quality", name: uiLabel("Quality"), hidden: true, value: "quality" },
+              Listview.funcBox.createSimpleCol("description", t("description"), "40%", "description")
             ],
         hiddenCols: ["source", "quality"],
         visibleCols: itemPathParts[0] === 4 ? ["armor", "slot"] : undefined,
         sort: ["-quality", "name"],
         data
       });
+      localizeListviewHeaders();
     } else {
       renderListTable(
         [t("list_name"), t("list_item_level"), t("list_required_level"), t("list_type")],
@@ -2010,7 +2853,7 @@ async function renderBrowseList(listType, params = new URLSearchParams(window.lo
           `<a href="?item=${encodeURIComponent(String(row.id))}">${escapeHtml(row.name)}</a>`,
           escapeHtml(row.level ?? ""),
           escapeHtml(row.reqlevel ?? ""),
-          escapeHtml(searchItemTypeText(row))
+          escapeHtml(localizeItemAttributeText(searchItemTypeText(row)))
         ]
       );
     }
@@ -2070,7 +2913,7 @@ async function renderBrowseList(listType, params = new URLSearchParams(window.lo
         type: 0
       })),
       sort: ["name"]
-    }, `<div class="path"><a href=".">Database</a> &raquo; <a href="?itemsets">Item Sets</a></div>`);
+    }, `<div class="path"><a href=".">${escapeHtml(pathLabel("Database"))}</a> &raquo; <a href="?itemsets">${escapeHtml(t("type_itemset"))}</a></div>`);
     return;
   }
   if (listType === "npcs") {
@@ -2312,7 +3155,7 @@ async function renderBrowseList(listType, params = new URLSearchParams(window.lo
         side: factionSideValue(x.side)
       })),
       sort: ["name"]
-    }, `<div class="path"><a href=".">Database</a> &raquo; <a href="?factions">Factions</a></div>`);
+    }, `<div class="path"><a href=".">${escapeHtml(pathLabel("Database"))}</a> &raquo; <a href="?factions">${escapeHtml(t("type_faction"))}</a></div>`);
   }
 }
 
@@ -2719,13 +3562,13 @@ async function renderDetail(type, id) {
       {
         template: "npc",
         id: "dropped-by",
-        name: LANG.tab_droppedby || t("relatedNpcs"),
+        name: state.lang === "zhCN" ? t("droppedBy") : (LANG.tab_droppedby || t("relatedNpcs")),
         data: droppedBy.map((x) => ({ id: String(x.id), name: x.name, percent: x.drop_percent }))
       },
       {
         template: "object",
         id: "contained-in-object",
-        name: LANG.tab_containedinobject || t("relatedObjects"),
+        name: state.lang === "zhCN" ? t("containedInObject") : (LANG.tab_containedinobject || t("relatedObjects")),
         data: containedByObjects.map((x) => ({ id: String(x.id), name: x.name, percent: x.drop_percent }))
       }
     ];
@@ -2852,7 +3695,7 @@ async function renderDetail(type, id) {
       {
         template: "item",
         id: "drops",
-        name: LANG.tab_drops || t("relatedItems"),
+        name: state.lang === "zhCN" ? t("relatedItems") : (LANG.tab_drops || t("relatedItems")),
         data: mapItemRowsForListview(npcDrops.map((x) => ({ id: x.id, name: x.name, percent: x.drop_percent, quality_class: x.quality_class })))
       }
     ];
@@ -2931,7 +3774,7 @@ async function renderDetail(type, id) {
       {
         template: "item",
         id: "contains-items",
-        name: LANG.tab_contains || t("relatedItems"),
+        name: state.lang === "zhCN" ? t("contains") : (LANG.tab_contains || t("relatedItems")),
         data: mapItemRowsForListview(objContains.map((x) => ({ id: x.id, name: x.name, percent: x.drop_percent, quality_class: x.quality_class })))
       }
     ];
@@ -2964,7 +3807,7 @@ async function renderDetail(type, id) {
         : `This object can be found in ${links}.<br><div id="mapper-generic"></div><div class="clear"></div>`;
     } else {
       introHtml = state.lang === "zhCN"
-        ? `该物体可在 。<br><div id="mapper-generic" style="width:488px;height:325px;background:#000;border:3px solid #404040;position:relative"><b style="position:absolute;right:4px;bottom:4px">Tip: Click map to zoom</b></div><div class="clear"></div>`
+        ? `该物体可在 。<br><div id="mapper-generic" style="width:488px;height:325px;background:#000;border:3px solid #404040;position:relative"><b style="position:absolute;right:4px;bottom:4px">提示：点击地图缩放</b></div><div class="clear"></div>`
         : `This Object can be found in .<br><div id="mapper-generic" style="width:488px;height:325px;background:#000;border:3px solid #404040;position:relative"><b style="position:absolute;right:4px;bottom:4px">Tip: Click map to zoom</b></div><div class="clear"></div>`;
     }
   } else if (type === "faction") {
@@ -3022,7 +3865,7 @@ async function renderDetail(type, id) {
       {
         template: "npc",
         id: "members",
-        name: t("relatedNpcs"),
+        name: t("members"),
         data: factionNpcs.map((x) => ({ id: String(x.id), name: x.name, level: x.level_min }))
       }
     ];
@@ -3167,29 +4010,29 @@ async function renderDetail(type, id) {
     }).join("")}</table>`
     : "";
   const questRewardHtml = type === "quest" && questRewardItems.length
-    ? `<h3>Reward</h3><div class="block-text">${escapeHtml((state.lang === "zhCN") ? "你可以选择以下奖励之一：" : "You can choose one of these awards:")}</div><div class="pad"></div><table class="icontab"><tr>${questRewardItems.map((x) => {
+    ? `<h3>${escapeHtml(t("reward"))}</h3><div class="block-text">${escapeHtml((state.lang === "zhCN") ? "你可以选择以下奖励之一：" : "You can choose one of these awards:")}</div><div class="pad"></div><table class="icontab"><tr>${questRewardItems.map((x) => {
       const iconIndex = questRewardItems.indexOf(x);
       return `<th id="quest-reward-icon${escapeHtml(String(iconIndex))}"></th><td><span class="q1"><a href="?item=${encodeURIComponent(String(x.id))}">${escapeHtml(x.name)}</a></span></td>`;
     }).join("")}</tr></table>`
     : "";
   const itemsetListHtml = type === "itemset" && itemsetItems.length
-    ? `${escapeHtml(itemsetIntro || `This ${itemsetItems.length}-piece set includes the following items:`)}
+    ? `${escapeHtml(itemsetIntro || (state.lang === "zhCN" ? `该套装包含以下 ${itemsetItems.length} 件装备：` : `This ${itemsetItems.length}-piece set includes the following items:`))}
       <table class="iconlist">${itemsetItems.map((x, i) => {
       const iconIndex = i + 1;
       return `<tr><th align="right" id="iconlist-icon${escapeHtml(String(iconIndex))}"></th><td><span class="q${escapeHtml(String(x.quality_class || 1))}"><a href="?item=${encodeURIComponent(String(x.id))}">${escapeHtml(x.name)}</a></span></td></tr>`;
     }).join("")}</table>`
     : "";
   const itemsetBonusesHtml = type === "itemset" && itemsetBonuses.length
-    ? `<h3>Set Bonuses</h3><div class="block-text">${escapeHtml(state.lang === "zhCN" ? "装备更多套装部件将获得额外效果。" : "Wearing more pieces of this set will convey bonuses to your character.")}</div><ul>${itemsetBonuses.map((x) => `<li><div>${escapeHtml(String(x.pieces_required || ""))} pieces: ${x.spell_id ? `<a href="?spell=${encodeURIComponent(String(x.spell_id))}">${escapeHtml(x.bonus_text || "")}</a>` : escapeHtml(x.bonus_text || "")}</div></li>`).join("")}</ul>`
+    ? `<h3>${escapeHtml(t("setBonuses"))}</h3><div class="block-text">${escapeHtml(state.lang === "zhCN" ? "装备更多套装部件将获得额外效果。" : "Wearing more pieces of this set will convey bonuses to your character.")}</div><ul>${itemsetBonuses.map((x) => `<li><div>${escapeHtml(String(x.pieces_required || ""))}${state.lang === "zhCN" ? " 件：" : " pieces: "}${x.spell_id ? `<a href="?spell=${encodeURIComponent(String(x.spell_id))}">${escapeHtml(x.bonus_text || "")}</a>` : escapeHtml(x.bonus_text || "")}</div></li>`).join("")}</ul>`
     : "";
   const spellDetailsHtml = type === "spell"
-    ? `<h3>Details on spell</h3><table class="grid" id="spelldetails"><colgroup><col width="12%"><col width="38%"><col width="12%"><col width="38%"></colgroup><tbody><tr><th>cost</th><td>${spellFactValueHtml(spellFactMap["detail:cost"] || row.cost_text || "")}</td><th>Duration</th><td>${spellFactValueHtml(spellFactMap["detail:duration"] || "")}</td></tr><tr><th>Range</th><td>${spellFactValueHtml(spellFactMap["detail:range"] || row.range_text || "")}</td><th>School</th><td>${spellFactValueHtml(spellFactMap["detail:school"] || row.school || "")}</td></tr><tr><th>Cast time</th><td>${spellFactValueHtml(spellFactMap["detail:cast_time"] || row.cast_time_text || "")}</td><th>Mechanic</th><td>${spellFactValueHtml(spellFactMap["detail:mechanic"] || "")}</td></tr><tr><th>Cooldown</th><td>${spellFactValueHtml(spellFactMap["detail:cooldown"] || row.cooldown_text || "")}</td><th>Dispel type</th><td>${spellFactValueHtml(spellFactMap["detail:dispel_type"] || "")}</td></tr><tr><th>Category Cooldown</th><td colspan="3">${spellFactValueHtml(spellFactMap["detail:category_cooldown"] || "")}</td></tr><tr><th>Effect #1</th><td colspan="3" style="line-height: 17px">${spellEffectHtml(spellFactMap["detail:effect_#1"] || "")}</td></tr><tr><th>Effect #2</th><td colspan="3" style="line-height: 17px">${spellEffectHtml(spellFactMap["detail:effect_#2"] || "")}</td></tr></tbody></table>`
+    ? `<h3>${escapeHtml(t("spellDetails"))}</h3><table class="grid" id="spelldetails"><colgroup><col width="12%"><col width="38%"><col width="12%"><col width="38%"></colgroup><tbody><tr><th>${escapeHtml(uiLabel("Cost"))}</th><td>${spellFactValueHtml(spellFactMap["detail:cost"] || row.cost_text || "")}</td><th>${escapeHtml(uiLabel("Duration"))}</th><td>${spellFactValueHtml(spellFactMap["detail:duration"] || "")}</td></tr><tr><th>${escapeHtml(uiLabel("Range"))}</th><td>${spellFactValueHtml(spellFactMap["detail:range"] || row.range_text || "")}</td><th>${escapeHtml(uiLabel("School"))}</th><td>${spellFactValueHtml(spellFactMap["detail:school"] || row.school || "")}</td></tr><tr><th>${escapeHtml(uiLabel("Cast Time"))}</th><td>${spellFactValueHtml(spellFactMap["detail:cast_time"] || row.cast_time_text || "")}</td><th>${escapeHtml(uiLabel("Mechanic"))}</th><td>${spellFactValueHtml(spellFactMap["detail:mechanic"] || "")}</td></tr><tr><th>${escapeHtml(uiLabel("Cooldown"))}</th><td>${spellFactValueHtml(spellFactMap["detail:cooldown"] || row.cooldown_text || "")}</td><th>${escapeHtml(uiLabel("Dispel type"))}</th><td>${spellFactValueHtml(spellFactMap["detail:dispel_type"] || "")}</td></tr><tr><th>${escapeHtml(uiLabel("Category Cooldown"))}</th><td colspan="3">${spellFactValueHtml(spellFactMap["detail:category_cooldown"] || "")}</td></tr><tr><th>${escapeHtml(uiLabel("Effect #1"))}</th><td colspan="3" style="line-height: 17px">${spellEffectHtml(spellFactMap["detail:effect_#1"] || "")}</td></tr><tr><th>${escapeHtml(uiLabel("Effect #2"))}</th><td colspan="3" style="line-height: 17px">${spellEffectHtml(spellFactMap["detail:effect_#2"] || "")}</td></tr></tbody></table>`
     : "";
   const factionContentHtml = type === "faction"
-    ? `${row.intro_text ? `<div class="block-text">${escapeHtml(row.intro_text)}</div>` : ""}${row.history_text ? `<h3>History</h3><div class="block-text">${escapeHtml(row.history_text)}</div>` : ""}${row.reputation_text ? `<h3>Reputation</h3><div class="block-text">${escapeHtml(row.reputation_text)}</div>` : ""}`
+    ? `${row.intro_text ? `<div class="block-text">${escapeHtml(row.intro_text)}</div>` : ""}${row.history_text ? `<h3>${escapeHtml(t("history"))}</h3><div class="block-text">${escapeHtml(row.history_text)}</div>` : ""}${row.reputation_text ? `<h3>${escapeHtml(t("reputation"))}</h3><div class="block-text">${escapeHtml(row.reputation_text)}</div>` : ""}`
     : "";
   const questDescriptionBlock = type === "quest" && row.description
-    ? `<h3>Description</h3><div class="block-text">${state.lang !== "zhCN" && row.description_html ? row.description_html : localizedTextHtml(row.description)}</div>`
+    ? `<h3>${escapeHtml(t("description"))}</h3><div class="block-text">${state.lang !== "zhCN" && row.description_html ? row.description_html : localizedTextHtml(row.description)}</div>`
     : "";
   const questProgressBlock = type === "quest" && row.progress_text
     ? `<h3>${escapeHtml(t("progress"))}</h3><div class="block-text">${state.lang !== "zhCN" && row.progress_html ? row.progress_html : localizedTextHtml(row.progress_text)}</div>`
@@ -3203,10 +4046,10 @@ async function renderDetail(type, id) {
   const breadcrumb = pathLinks.length
     ? renderBreadcrumbFromLinks(pathLinks)
     : (type === "item"
-      ? `<div class="path"><a href=".">Database</a> &raquo; ${itemBreadcrumbLinks(row).map((x) => `<a href="${x.href}">${escapeHtml(x.label)}</a>`).join(" &raquo; ")}</div>`
+      ? `<div class="path"><a href=".">${escapeHtml(pathLabel("Database"))}</a> &raquo; ${itemBreadcrumbLinks(row).map((x) => `<a href="${x.href}">${escapeHtml(pathLabel(x.label, x.href))}</a>`).join(" &raquo; ")}</div>`
       : type === "itemset"
-        ? `<div class="path"><a href=".">Database</a> &raquo; <a href="?itemsets">Item Sets</a></div>`
-        : `<div class="path"><a href=".">Database</a> &raquo; <a href="?${typePlural(type)}">${escapeHtml(titleCasePlural(type))}</a></div>`);
+        ? `<div class="path"><a href=".">${escapeHtml(pathLabel("Database"))}</a> &raquo; <a href="?itemsets">${escapeHtml(t("type_itemset"))}</a></div>`
+        : `<div class="path"><a href=".">${escapeHtml(pathLabel("Database"))}</a> &raquo; <a href="?${typePlural(type)}">${escapeHtml(pathLabel(titleCasePlural(type)))}</a></div>`);
   if (el.precontents) el.precontents.innerHTML = breadcrumb;
   setPageHeading(`${row.name} - Turtle WoW Database`);
   el.detail.innerHTML = `
@@ -3228,7 +4071,7 @@ async function renderDetail(type, id) {
       ${questProgressBlock}
       ${questCompletionBlock}
       ${questGainsBlock}
-      <h2>See also</h2>
+      <h2>${escapeHtml(t("seeAlso"))}</h2>
     </div>
   `;
   if (!listviewConfigs.length && relatedQuestRows.length) {
@@ -3312,7 +4155,7 @@ async function routePage() {
       el.results.innerHTML = "";
       resetRelatedListviews();
       await renderBrowseList(listType, params);
-      setPageHeading(`${listType} - Turtle WoW Database`);
+      setPageHeading(`${listTypeLabel(listType)} - Turtle WoW Database`);
       setHomeMode(false);
       return;
     }
@@ -3339,17 +4182,17 @@ async function routePage() {
   const q = (params.get("search") || "").trim();
   if (q) {
     el.input.value = q;
-    setPageHeading(`Search: ${q} - Turtle WoW Database`);
+    setPageHeading(`${state.lang === "zhCN" ? "搜索" : "Search"}: ${q} - Turtle WoW Database`);
     await renderSearchResultsPage(q);
     setHomeMode(false);
     return;
   }
   el.results.innerHTML = "";
   if (el.precontents) el.precontents.innerHTML = "";
-  el.detail.innerHTML = "";
   resetRelatedListviews();
   setPageHeading("Turtle WoW Database");
   setHomeMode(true);
+  renderHomeBrowse();
 }
 
 async function bootstrap() {

@@ -152,7 +152,9 @@ function ce(C, B) {
 }
 
 function de(A) {
-    A.parentNode.removeChild(A)
+    if (A && A.parentNode) {
+        A.parentNode.removeChild(A)
+    }
 }
 
 function ae(A, B) {
