@@ -1,7 +1,3 @@
-import sqlHttpVfs from "https://cdn.jsdelivr.net/npm/sql.js-httpvfs@0.8.12/+esm";
-
-const { createDbWorker } = sqlHttpVfs;
-
 const I18N = {
   enUS: {
     statusReady: "Ready",
@@ -64,7 +60,10 @@ const I18N = {
     browseDatabase: "Browse Database",
     browseHint: "Jump directly to common database sections.",
     popularBrowse: "Popular Browse",
-    allEntries: "All"
+    allEntries: "All",
+    pageLabel: "Page",
+    previousPage: "Previous",
+    nextPage: "Next"
   },
   zhCN: {
     statusReady: "已就绪",
@@ -127,16 +126,24 @@ const I18N = {
     browseDatabase: "浏览数据库",
     browseHint: "直接进入常用数据库分类，减少搜索等待。",
     popularBrowse: "常用浏览",
-    allEntries: "全部"
+    allEntries: "全部",
+    pageLabel: "第",
+    previousPage: "上一页",
+    nextPage: "下一页"
   }
 };
 
 const state = {
   lang: localStorage.getItem("turtle-db-lang") || "enUS",
-  dbWorker: null,
+  dbClient: null,
   timer: null,
-  originalMenus: null
+  originalMenus: null,
+  hasSearchFts: null
 };
+
+const BROWSE_PAGE_SIZE = 500;
+const SEARCH_RESULT_LIMIT = 120;
+const SEARCH_FTS_LIMIT = 800;
 
 const el = {
   form: document.getElementById("header-search-form") || document.getElementById("search-form"),
@@ -1151,43 +1158,108 @@ function updateLangButtons() {
   rerenderBrowseHeader();
 }
 
-async function ensureDb() {
-  if (state.dbWorker) return state.dbWorker;
-  const cfg = window.TURTLE_DB_CONFIG || {};
-  if (!cfg.databaseUrl || cfg.databaseUrl.includes("pub-your-r2-domain")) {
-    throw new Error("Please set databaseUrl in db-config.js");
+function libsqlArgs(sql, params = {}) {
+  const used = new Set();
+  const re = /[:@$]([A-Za-z_][A-Za-z0-9_]*)/g;
+  let match = re.exec(sql);
+  while (match) {
+    used.add(match[1]);
+    match = re.exec(sql);
   }
+  const args = {};
+  for (const [key, value] of Object.entries(params || {})) {
+    const name = String(key).replace(/^[:@$]/, "");
+    if (used.has(name)) args[name] = value;
+  }
+  return args;
+}
 
+async function ensureDb() {
+  if (state.dbClient) return state.dbClient;
+  const cfg = window.TURTLE_DB_CONFIG || {};
+  if (!cfg.tursoUrl || !cfg.authToken) {
+    throw new Error("Please set tursoUrl and authToken in db-config.js");
+  }
   setStatus(t("statusLoading"));
-  state.dbWorker = await createDbWorker(
-    [{
-      from: "inline",
-      config: {
-        serverMode: "full",
-        requestChunkSize: cfg.requestChunkSize || 4096,
-        url: cfg.databaseUrl
-      }
-    }],
-    "./sqlite.worker.js",
-    "./sql-wasm.wasm"
-  );
+  const { createClient } = await import("https://esm.sh/@libsql/client@0.15.15/web");
+  state.dbClient = createClient({
+    url: cfg.tursoUrl,
+    authToken: cfg.authToken
+  });
   setStatus(t("statusReady"));
-  return state.dbWorker;
+  return state.dbClient;
 }
 
 async function execRows(sql, params = {}) {
-  const worker = await ensureDb();
-  const out = await worker.db.exec(sql, params);
-  if (!out || !out.length) return [];
-  const cols = out[0].columns;
-  return out[0].values.map((row) => {
+  const db = await ensureDb();
+  const result = await db.execute({ sql, args: libsqlArgs(sql, params) });
+  return (result.rows || []).map((row) => {
     const obj = {};
-    for (let i = 0; i < cols.length; i += 1) obj[cols[i]] = row[i];
+    for (const key of Object.keys(row)) obj[key] = row[key];
     return obj;
   });
 }
 
+async function hasSearchFts() {
+  if (state.hasSearchFts !== null) return state.hasSearchFts;
+  try {
+    const rows = await execRows("SELECT name FROM sqlite_master WHERE type='table' AND name='site_search_fts' LIMIT 1;");
+    state.hasSearchFts = rows.length > 0;
+  } catch (_) {
+    state.hasSearchFts = false;
+  }
+  return state.hasSearchFts;
+}
+
+function searchFtsMatch(queryText) {
+  const terms = String(queryText || "")
+    .trim()
+    .split(/\s+/)
+    .map((term) => term.trim().replace(/"/g, '""'))
+    .filter((term) => term.length >= 3);
+  return terms.map((term) => `"${term}"`).join(" AND ");
+}
+
+async function searchFtsRows(queryText, limit = 1000) {
+  const match = searchFtsMatch(queryText);
+  if (!match || !(await hasSearchFts())) return null;
+  try {
+    return await execRows(`
+      SELECT entity_type AS type,
+        entity_id AS id,
+        CASE WHEN :locale='zhCN' AND localized_name <> '' THEN localized_name ELSE name END AS name
+      FROM site_search_fts
+      WHERE site_search_fts MATCH :match
+      ORDER BY rank
+      LIMIT :limit;
+    `, { ":match": match, ":locale": state.lang, ":limit": limit });
+  } catch (_) {
+    state.hasSearchFts = false;
+    return null;
+  }
+}
+
+function idsBySearchType(rows, type) {
+  const seen = new Set();
+  const ids = [];
+  for (const row of rows || []) {
+    if (row.type !== type) continue;
+    const id = Number(row.id);
+    if (!Number.isInteger(id) || id <= 0 || seen.has(id)) continue;
+    seen.add(id);
+    ids.push(id);
+  }
+  return ids;
+}
+
+function idWhere(column, ids) {
+  return ids.length ? `${column} IN (${ids.join(",")})` : "0";
+}
+
 async function querySuggestions(queryText) {
+  const ftsRows = await searchFtsRows(queryText, 15);
+  if (ftsRows) return ftsRows;
+
   const like = `%${queryText}%`;
   const localized = state.lang === "zhCN";
   const locale = localized ? "zhCN" : "__none__";
@@ -1491,6 +1563,13 @@ function questCategoryFromPath(pathJson, fallbackCategory) {
 
 async function searchListviewConfigs(queryText) {
   const like = `%${queryText}%`;
+  const ftsMatches = await searchFtsRows(queryText, SEARCH_FTS_LIMIT);
+  const useFts = Array.isArray(ftsMatches);
+  const itemIds = useFts ? idsBySearchType(ftsMatches, "item") : [];
+  const npcIds = useFts ? idsBySearchType(ftsMatches, "npc") : [];
+  const objectIds = useFts ? idsBySearchType(ftsMatches, "object") : [];
+  const questIdsFromSearch = useFts ? idsBySearchType(ftsMatches, "quest") : [];
+  const spellIdsFromSearch = useFts ? idsBySearchType(ftsMatches, "spell") : [];
   const localized = state.lang === "zhCN";
   const locale = localized ? "zhCN" : "__none__";
   const itemNameSelect = localized ? "CASE WHEN :locale='zhCN' THEN COALESCE(l.name, i.name) ELSE i.name END" : "i.name";
@@ -1503,11 +1582,11 @@ async function searchListviewConfigs(queryText) {
   const objectLocJoin = localized ? "LEFT JOIN entity_localizations l ON l.entity_type='object' AND l.entity_id=o.object_id AND l.locale='zhCN'" : "";
   const questLocJoin = localized ? "LEFT JOIN entity_localizations l ON l.entity_type='quest' AND l.entity_id=q.quest_id AND l.locale='zhCN'" : "";
   const spellLocJoin = localized ? "LEFT JOIN entity_localizations l ON l.entity_type='spell' AND l.entity_id=s.spell_id AND l.locale='zhCN'" : "";
-  const itemWhere = localized ? "(i.name LIKE :like COLLATE NOCASE OR (l.name IS NOT NULL AND l.name LIKE :like COLLATE NOCASE))" : "i.name LIKE :like COLLATE NOCASE";
-  const npcWhere = localized ? "(n.name LIKE :like COLLATE NOCASE OR (l.name IS NOT NULL AND l.name LIKE :like COLLATE NOCASE))" : "n.name LIKE :like COLLATE NOCASE";
-  const objectWhere = localized ? "(o.name LIKE :like COLLATE NOCASE OR (l.name IS NOT NULL AND l.name LIKE :like COLLATE NOCASE))" : "o.name LIKE :like COLLATE NOCASE";
-  const questWhere = localized ? "(q.name LIKE :like COLLATE NOCASE OR (l.name IS NOT NULL AND l.name LIKE :like COLLATE NOCASE))" : "q.name LIKE :like COLLATE NOCASE";
-  const spellWhere = localized ? "(s.name LIKE :like COLLATE NOCASE OR (l.name IS NOT NULL AND l.name LIKE :like COLLATE NOCASE))" : "s.name LIKE :like COLLATE NOCASE";
+  const itemWhere = useFts ? idWhere("i.item_id", itemIds) : (localized ? "(i.name LIKE :like COLLATE NOCASE OR (l.name IS NOT NULL AND l.name LIKE :like COLLATE NOCASE))" : "i.name LIKE :like COLLATE NOCASE");
+  const npcWhere = useFts ? idWhere("n.npc_id", npcIds) : (localized ? "(n.name LIKE :like COLLATE NOCASE OR (l.name IS NOT NULL AND l.name LIKE :like COLLATE NOCASE))" : "n.name LIKE :like COLLATE NOCASE");
+  const objectWhere = useFts ? idWhere("o.object_id", objectIds) : (localized ? "(o.name LIKE :like COLLATE NOCASE OR (l.name IS NOT NULL AND l.name LIKE :like COLLATE NOCASE))" : "o.name LIKE :like COLLATE NOCASE");
+  const questWhere = useFts ? idWhere("q.quest_id", questIdsFromSearch) : (localized ? "(q.name LIKE :like COLLATE NOCASE OR (l.name IS NOT NULL AND l.name LIKE :like COLLATE NOCASE))" : "q.name LIKE :like COLLATE NOCASE");
+  const spellWhere = useFts ? idWhere("s.spell_id", spellIdsFromSearch) : (localized ? "(s.name LIKE :like COLLATE NOCASE OR (l.name IS NOT NULL AND l.name LIKE :like COLLATE NOCASE))" : "s.name LIKE :like COLLATE NOCASE");
   const [items, npcs, objects, quests, spells] = await Promise.all([
     execRows(`
       SELECT i.item_id AS id,
@@ -1526,8 +1605,8 @@ async function searchListviewConfigs(queryText) {
       WHERE ${itemWhere}
       AND i.name <> '_'
       ORDER BY quality_class DESC, name COLLATE NOCASE
-      LIMIT 1000;
-    `, { ":like": like, ":locale": locale }),
+      LIMIT :limit;
+    `, { ":like": like, ":locale": locale, ":limit": SEARCH_RESULT_LIMIT }),
     execRows(`
       SELECT n.npc_id AS id,
       ${npcNameSelect} AS name,
@@ -1536,8 +1615,8 @@ async function searchListviewConfigs(queryText) {
       ${npcLocJoin}
       WHERE ${npcWhere}
       ORDER BY name COLLATE NOCASE
-      LIMIT 1000;
-    `, { ":like": like, ":locale": locale }),
+      LIMIT :limit;
+    `, { ":like": like, ":locale": locale, ":limit": SEARCH_RESULT_LIMIT }),
     execRows(`
       SELECT o.object_id AS id,
       ${objectNameSelect} AS name,
@@ -1546,8 +1625,8 @@ async function searchListviewConfigs(queryText) {
       ${objectLocJoin}
       WHERE ${objectWhere}
       ORDER BY name COLLATE NOCASE
-      LIMIT 1000;
-    `, { ":like": like, ":locale": locale }),
+      LIMIT :limit;
+    `, { ":like": like, ":locale": locale, ":limit": SEARCH_RESULT_LIMIT }),
     execRows(`
       SELECT q.quest_id AS id,
       ${questNameSelect} AS name,
@@ -1558,8 +1637,8 @@ async function searchListviewConfigs(queryText) {
       LEFT JOIN entity_paths ep ON ep.entity_type='quest' AND ep.entity_id=q.quest_id
       WHERE ${questWhere}
       ORDER BY name COLLATE NOCASE
-      LIMIT 1000;
-    `, { ":like": like, ":locale": locale }),
+      LIMIT :limit;
+    `, { ":like": like, ":locale": locale, ":limit": SEARCH_RESULT_LIMIT }),
     execRows(`
       SELECT s.spell_id AS id,
       ${spellNameSelect} AS name,
@@ -1569,8 +1648,8 @@ async function searchListviewConfigs(queryText) {
       LEFT JOIN spell_tooltips st ON st.spell_id=s.spell_id
       WHERE ${spellWhere}
       ORDER BY name COLLATE NOCASE
-      LIMIT 1000;
-    `, { ":like": like, ":locale": locale })
+      LIMIT :limit;
+    `, { ":like": like, ":locale": locale, ":limit": SEARCH_RESULT_LIMIT })
   ]);
 
   await primeGlobalItems(items.map((x) => x.id), locale);
@@ -1821,6 +1900,7 @@ function renderRelatedListviews(configs) {
     if (cfg.visibleCols) options.visibleCols = cfg.visibleCols;
     if (cfg.hiddenCols) options.hiddenCols = cfg.hiddenCols;
     if (cfg.sort) options.sort = cfg.sort;
+    if (cfg.template === "quest") registerGlobalQuestRows(options.data);
     new Listview(options);
     localizeListviewHeaders();
   }
@@ -1902,6 +1982,39 @@ function mapQuestRowsForListview(rows) {
     itemrewards: row.itemrewards,
     itemchoices: row.itemchoices
   }));
+}
+
+function localQuestTooltipHtml(quest) {
+  const name = quest.name || `quest:${quest.id}`;
+  const level = quest.level ?? quest.quest_level ?? "";
+  const reqLevel = quest.reqlevel ?? quest.required_level ?? "";
+  const tags = [];
+  if (level !== "") tags.push(`${uiLabel("Level")} ${level}`);
+  if (Number(reqLevel) > 0) tags.push(`${uiLabel("Req. Level")} ${reqLevel}`);
+  return `
+    <table><tbody>
+      <tr><td><b class="q">${escapeHtml(name)}</b></td></tr>
+      ${tags.length ? `<tr><td>${escapeHtml(tags.join(" - "))}</td></tr>` : ""}
+    </tbody></table>
+  `;
+}
+
+function registerGlobalQuestRows(rows) {
+  if (!window.g_quests) return;
+  for (const quest of rows || []) {
+    const id = Number(quest.id);
+    if (!Number.isInteger(id) || id <= 0) continue;
+    const existing = window.g_quests[id] || {};
+    window.g_quests[id] = {
+      ...existing,
+      name: quest.name || existing.name || `${id}`,
+      tooltip: existing.tooltip || localQuestTooltipHtml(quest),
+      status: {
+        ...(existing.status || {}),
+        [String((window.g_locale && window.g_locale.id) || 0)]: 4
+      }
+    };
+  }
 }
 
 function itemQualityColor(qualityClass) {
@@ -2155,6 +2268,18 @@ async function primeGlobalItems(ids, locale) {
     window.g_items[id].quality = Number(item.quality_class ?? item.quality ?? 1);
     window.g_items[id].icon = normalizeIconName(item.icon_name);
     registerLocalItemTooltip(item);
+  }
+}
+
+function registerBasicGlobalItemRows(rows) {
+  if (!window.g_items) return;
+  for (const item of rows || []) {
+    const id = Number(item.id);
+    if (!Number.isInteger(id) || id <= 0) continue;
+    window.g_items[id] = window.g_items[id] || {};
+    window.g_items[id].name = item.name;
+    window.g_items[id].quality = Number(item.quality_class ?? item.quality ?? 1);
+    window.g_items[id].icon = normalizeIconName(item.icon_name);
   }
 }
 
@@ -2786,16 +2911,50 @@ function renderBrowseListview(config, breadcrumbHtml = "") {
       name: listviewSpellName(row.name)
     }));
   }
+  if (config.template === "quest") registerGlobalQuestRows(options.data);
   new Listview(options);
   localizeListviewHeaders();
 }
 
+function browsePage(params) {
+  const value = Number(params.get("page") || "1");
+  return Number.isInteger(value) && value > 0 ? value : 1;
+}
+
+function browsePageParams(params, page) {
+  const next = new URLSearchParams(params);
+  if (page <= 1) next.delete("page");
+  else next.set("page", String(page));
+  return `?${next.toString()}`;
+}
+
+function browsePagerHtml(params, page, hasNext) {
+  if (page <= 1 && !hasNext) return "";
+  const prev = page > 1
+    ? `<a href="${escapeHtml(browsePageParams(params, page - 1))}">${escapeHtml(t("previousPage"))}</a>`
+    : `<span class="disabled">${escapeHtml(t("previousPage"))}</span>`;
+  const next = hasNext
+    ? `<a href="${escapeHtml(browsePageParams(params, page + 1))}">${escapeHtml(t("nextPage"))}</a>`
+    : `<span class="disabled">${escapeHtml(t("nextPage"))}</span>`;
+  const pageText = state.lang === "zhCN"
+    ? `${t("pageLabel")} ${page} 页`
+    : `${t("pageLabel")} ${page}`;
+  return `<div class="browse-pager">${prev}<span>${escapeHtml(pageText)}</span>${next}</div>`;
+}
+
+function browseChromeHtml(breadcrumbHtml, params, page, hasNext) {
+  return `${breadcrumbHtml || ""}${browsePagerHtml(params, page, hasNext)}`;
+}
+
 async function renderBrowseList(listType, params = new URLSearchParams(window.location.search)) {
   const locale = state.lang === "zhCN" ? "zhCN" : "__none__";
+  const page = browsePage(params);
+  const limit = BROWSE_PAGE_SIZE + 1;
+  const offset = (page - 1) * BROWSE_PAGE_SIZE;
   let rows = [];
   if (listType === "items") {
     const itemPathParts = parseBrowsePathParam(params.get("items"), 3);
-    const itemQueryParams = { ":locale": locale };
+    const itemQueryParams = { ":locale": locale, ":limit": limit, ":offset": offset };
     const itemWhere = ["i.name <> '_'"];
     if (itemPathParts.length === 1) {
       const path = [0, 0, itemPathParts[0]];
@@ -2831,15 +2990,17 @@ async function renderBrowseList(listType, params = new URLSearchParams(window.lo
       LEFT JOIN item_tooltip_stats its ON its.item_id=i.item_id
       WHERE ${itemWhere.join(" AND ")}
       ORDER BY quality_class DESC, name COLLATE NOCASE
-      LIMIT 50000;
+      LIMIT :limit OFFSET :offset;
     `, itemQueryParams);
     if (itemPathParts.length) {
       rows = rows.filter((row) => itemPathMatches(row.path_json, itemPathParts, row));
     }
+    const hasNext = rows.length > BROWSE_PAGE_SIZE;
+    rows = rows.slice(0, BROWSE_PAGE_SIZE);
     await hydrateItemEffectSpells(rows, locale, ["effect_html"]);
     registerGlobalItemRows(rows);
     if (el.precontents) {
-      el.precontents.innerHTML = browseBreadcrumb(itemPathParts.length ? [0, 0, ...itemPathParts] : [0, 0], "Items", "?items");
+      el.precontents.innerHTML = browseChromeHtml(browseBreadcrumb(itemPathParts.length ? [0, 0, ...itemPathParts] : [0, 0], "Items", "?items"), params, page, hasNext);
     }
     el.detail.innerHTML = `
       <span class="menuarrow hand" onclick="toggle_filters()">Filters</span>
@@ -2920,8 +3081,10 @@ async function renderBrowseList(listType, params = new URLSearchParams(window.lo
       )
       GROUP BY s.itemset_id, s.name, s.set_level, s.piece_count
       ORDER BY s.name COLLATE NOCASE
-      LIMIT 1000;
-    `, { ":bit": classMaskBit });
+      LIMIT :limit OFFSET :offset;
+    `, { ":bit": classMaskBit, ":limit": limit, ":offset": offset });
+    const hasNext = rows.length > BROWSE_PAGE_SIZE;
+    rows = rows.slice(0, BROWSE_PAGE_SIZE);
     const setIds = rows.map((x) => Number(x.id)).filter((x) => Number.isInteger(x) && x > 0);
     const pieceRows = setIds.length ? await execRows(`
       SELECT si.itemset_id, si.item_id AS id, si.quality_class, si.icon_name, si.sort_order
@@ -2949,11 +3112,17 @@ async function renderBrowseList(listType, params = new URLSearchParams(window.lo
         type: 0
       })),
       sort: ["name"]
-    }, `<div class="path"><a href=".">${escapeHtml(pathLabel("Database"))}</a> &raquo; <a href="?itemsets">${escapeHtml(t("type_itemset"))}</a></div>`);
+    }, browseChromeHtml(`<div class="path"><a href=".">${escapeHtml(pathLabel("Database"))}</a> &raquo; <a href="?itemsets">${escapeHtml(t("type_itemset"))}</a></div>`, params, page, hasNext));
     return;
   }
   if (listType === "npcs") {
     const npcPathParts = parseBrowsePathParam(params.get("npcs"), 1);
+    const npcQueryParams = { ":locale": locale, ":limit": limit, ":offset": offset };
+    const npcWhere = [];
+    if (npcPathParts.length) {
+      npcQueryParams[":pathExact"] = pathJsonLiteral([0, 4, ...npcPathParts]);
+      npcWhere.push("ep.path_json = :pathExact");
+    }
     rows = await execRows(`
       SELECT n.npc_id AS id,
       CASE WHEN :locale='zhCN' THEN COALESCE(l.name, n.name) ELSE n.name END AS name,
@@ -2961,12 +3130,15 @@ async function renderBrowseList(listType, params = new URLSearchParams(window.lo
       FROM npcs n
       LEFT JOIN entity_localizations l ON l.entity_type='npc' AND l.entity_id=n.npc_id AND l.locale='zhCN'
       LEFT JOIN entity_paths ep ON ep.entity_type='npc' AND ep.entity_id=n.npc_id
+      ${npcWhere.length ? `WHERE ${npcWhere.join(" AND ")}` : ""}
       ORDER BY name COLLATE NOCASE
-      LIMIT 50000;
-    `, { ":locale": locale });
+      LIMIT :limit OFFSET :offset;
+    `, npcQueryParams);
     if (npcPathParts.length) {
       rows = rows.filter((row) => entityPathMatches(row.path_json, npcPathParts, 2));
     }
+    const hasNext = rows.length > BROWSE_PAGE_SIZE;
+    rows = rows.slice(0, BROWSE_PAGE_SIZE);
     const npcIds = rows.map((x) => Number(x.id)).filter((x) => Number.isInteger(x) && x > 0);
     const locationRows = npcIds.length ? await execRows(`
       SELECT entity_id AS id, zone_id
@@ -2994,11 +3166,17 @@ async function renderBrowseList(listType, params = new URLSearchParams(window.lo
         location: locationsById.get(Number(x.id)) || []
       })),
       sort: ["name"]
-    }, browseBreadcrumb(npcPathParts.length ? [0, 4, ...npcPathParts] : [0, 4], "NPCs", "?npcs"));
+    }, browseChromeHtml(browseBreadcrumb(npcPathParts.length ? [0, 4, ...npcPathParts] : [0, 4], "NPCs", "?npcs"), params, page, hasNext));
     return;
   }
   if (listType === "objects") {
     const objectPathParts = parseBrowsePathParam(params.get("objects"), 1);
+    const objectQueryParams = { ":locale": locale, ":limit": limit, ":offset": offset };
+    const objectWhere = [];
+    if (objectPathParts.length) {
+      objectQueryParams[":pathExact"] = pathJsonLiteral([0, 5, ...objectPathParts]);
+      objectWhere.push("ep.path_json = :pathExact");
+    }
     rows = await execRows(`
       SELECT o.object_id AS id,
       CASE WHEN :locale='zhCN' THEN COALESCE(l.name, o.name) ELSE o.name END AS name,
@@ -3006,12 +3184,15 @@ async function renderBrowseList(listType, params = new URLSearchParams(window.lo
       FROM objects o
       LEFT JOIN entity_localizations l ON l.entity_type='object' AND l.entity_id=o.object_id AND l.locale='zhCN'
       LEFT JOIN entity_paths ep ON ep.entity_type='object' AND ep.entity_id=o.object_id
+      ${objectWhere.length ? `WHERE ${objectWhere.join(" AND ")}` : ""}
       ORDER BY name COLLATE NOCASE
-      LIMIT 50000;
-    `, { ":locale": locale });
+      LIMIT :limit OFFSET :offset;
+    `, objectQueryParams);
     if (objectPathParts.length) {
       rows = rows.filter((row) => entityPathMatches(row.path_json, objectPathParts, 2));
     }
+    const hasNext = rows.length > BROWSE_PAGE_SIZE;
+    rows = rows.slice(0, BROWSE_PAGE_SIZE);
     const objectIds = rows.map((x) => Number(x.id)).filter((x) => Number.isInteger(x) && x > 0);
     const locationRows = objectIds.length ? await execRows(`
       SELECT entity_id AS id, zone_id
@@ -3036,11 +3217,17 @@ async function renderBrowseList(listType, params = new URLSearchParams(window.lo
         location: locationsById.get(Number(x.id)) || []
       })),
       sort: ["name"]
-    }, browseBreadcrumb(objectPathParts.length ? [0, 5, ...objectPathParts] : [0, 5], "Objects", "?objects"));
+    }, browseChromeHtml(browseBreadcrumb(objectPathParts.length ? [0, 5, ...objectPathParts] : [0, 5], "Objects", "?objects"), params, page, hasNext));
     return;
   }
   if (listType === "quests") {
     const questPathParts = parseBrowsePathParam(params.get("quests"), 2);
+    const questQueryParams = { ":locale": locale, ":limit": limit, ":offset": offset };
+    const questWhere = [];
+    if (questPathParts.length) {
+      questQueryParams[":pathExact"] = pathJsonLiteral([0, 3, ...questPathParts]);
+      questWhere.push("ep.path_json = :pathExact");
+    }
     rows = await execRows(`
       SELECT q.quest_id AS id,
       CASE WHEN :locale='zhCN' THEN COALESCE(l.name, q.name) ELSE q.name END AS name,
@@ -3050,12 +3237,15 @@ async function renderBrowseList(listType, params = new URLSearchParams(window.lo
       LEFT JOIN entity_localizations l ON l.entity_type='quest' AND l.entity_id=q.quest_id AND l.locale='zhCN'
       LEFT JOIN entity_paths ep ON ep.entity_type='quest' AND ep.entity_id=q.quest_id
       LEFT JOIN quest_facts qtype ON qtype.quest_id=q.quest_id AND qtype.fact_key='Type'
+      ${questWhere.length ? `WHERE ${questWhere.join(" AND ")}` : ""}
       ORDER BY name COLLATE NOCASE
-      LIMIT 50000;
-    `, { ":locale": locale });
+      LIMIT :limit OFFSET :offset;
+    `, questQueryParams);
     if (questPathParts.length) {
       rows = rows.filter((row) => entityPathMatches(row.path_json, questPathParts, 2));
     }
+    const hasNext = rows.length > BROWSE_PAGE_SIZE;
+    rows = rows.slice(0, BROWSE_PAGE_SIZE);
     const questIds = rows.map((x) => Number(x.id)).filter((x) => Number.isInteger(x) && x > 0);
     const rewardRows = questIds.length ? await execRows(`
       SELECT quest_id, item_id, COALESCE(item_count, 1) AS item_count, sort_order
@@ -3089,7 +3279,7 @@ async function renderBrowseList(listType, params = new URLSearchParams(window.lo
         };
       }),
       sort: ["name"]
-    }, browseBreadcrumb(questPathParts.length ? [0, 3, ...questPathParts] : [0, 3], "Quests", "?quests"));
+    }, browseChromeHtml(browseBreadcrumb(questPathParts.length ? [0, 3, ...questPathParts] : [0, 3], "Quests", "?quests"), params, page, hasNext));
     return;
   }
   if (listType === "spells") {
@@ -3118,8 +3308,11 @@ async function renderBrowseList(listType, params = new URLSearchParams(window.lo
         LEFT JOIN spell_tooltips st ON st.spell_id=sbe.spell_id
         LEFT JOIN entity_localizations l ON l.entity_type='spell' AND l.entity_id=sbe.spell_id AND l.locale='zhCN'
         WHERE sbe.path=:path
-        ORDER BY sbe.sort_order;
-      `, { ":locale": locale, ":path": spellPath });
+        ORDER BY sbe.sort_order
+        LIMIT :limit OFFSET :offset;
+      `, { ":locale": locale, ":path": spellPath, ":limit": limit, ":offset": offset });
+      const hasNext = rows.length > BROWSE_PAGE_SIZE;
+      rows = rows.slice(0, BROWSE_PAGE_SIZE);
       await primeGlobalSpells(rows.map((x) => x.id), locale);
       await primeGlobalItems(rows.flatMap((x) => (parseJsonArray(x.reagents_json) || []).map((pair) => Array.isArray(pair) ? pair[0] : null)), locale);
       renderBrowseListview({
@@ -3142,8 +3335,14 @@ async function renderBrowseList(listType, params = new URLSearchParams(window.lo
         visibleCols: ["level"],
         hiddenCols: ["reagents", "school"],
         sort: ["skill", "name"]
-      }, browseBreadcrumb([0, 1, ...spellPathParts], "Spells", "?spells"));
+      }, browseChromeHtml(browseBreadcrumb([0, 1, ...spellPathParts], "Spells", "?spells"), params, page, hasNext));
       return;
+    }
+    const spellQueryParams = { ":locale": locale, ":limit": limit, ":offset": offset };
+    const spellWhere = [];
+    if (spellPathParts.length) {
+      spellQueryParams[":pathExact"] = pathJsonLiteral([0, 1, ...spellPathParts]);
+      spellWhere.push("ep.path_json = :pathExact");
     }
     rows = await execRows(`
       SELECT s.spell_id AS id,
@@ -3152,12 +3351,15 @@ async function renderBrowseList(listType, params = new URLSearchParams(window.lo
       FROM spells s
       LEFT JOIN entity_localizations l ON l.entity_type='spell' AND l.entity_id=s.spell_id AND l.locale='zhCN'
       LEFT JOIN entity_paths ep ON ep.entity_type='spell' AND ep.entity_id=s.spell_id
+      ${spellWhere.length ? `WHERE ${spellWhere.join(" AND ")}` : ""}
       ORDER BY name COLLATE NOCASE
-      LIMIT 50000;
-    `, { ":locale": locale });
+      LIMIT :limit OFFSET :offset;
+    `, spellQueryParams);
     if (spellPathParts.length) {
       rows = rows.filter((row) => entityPathMatches(row.path_json, spellPathParts, 2));
     }
+    const hasNext = rows.length > BROWSE_PAGE_SIZE;
+    rows = rows.slice(0, BROWSE_PAGE_SIZE);
     renderListTable(
       [t("list_name"), t("list_level"), t("list_school")],
       rows,
@@ -3166,7 +3368,7 @@ async function renderBrowseList(listType, params = new URLSearchParams(window.lo
         escapeHtml(row.level ?? ""),
         escapeHtml(row.school ?? "")
       ],
-      browseBreadcrumb(spellPathParts.length ? [0, 1, ...spellPathParts] : [0, 1], "Spells", "?spells")
+      browseChromeHtml(browseBreadcrumb(spellPathParts.length ? [0, 1, ...spellPathParts] : [0, 1], "Spells", "?spells"), params, page, hasNext)
     );
     return;
   }
@@ -3179,8 +3381,10 @@ async function renderBrowseList(listType, params = new URLSearchParams(window.lo
       FROM factions f
       LEFT JOIN entity_localizations l ON l.entity_type='faction' AND l.entity_id=f.faction_id AND l.locale='zhCN'
       ORDER BY name COLLATE NOCASE
-      LIMIT 1000;
-    `, { ":locale": locale });
+      LIMIT :limit OFFSET :offset;
+    `, { ":locale": locale, ":limit": limit, ":offset": offset });
+    const hasNext = rows.length > BROWSE_PAGE_SIZE;
+    rows = rows.slice(0, BROWSE_PAGE_SIZE);
     renderBrowseListview({
       template: "faction",
       id: "factions",
@@ -3191,7 +3395,7 @@ async function renderBrowseList(listType, params = new URLSearchParams(window.lo
         side: factionSideValue(x.side)
       })),
       sort: ["name"]
-    }, `<div class="path"><a href=".">${escapeHtml(pathLabel("Database"))}</a> &raquo; <a href="?factions">${escapeHtml(t("type_faction"))}</a></div>`);
+    }, browseChromeHtml(`<div class="path"><a href=".">${escapeHtml(pathLabel("Database"))}</a> &raquo; <a href="?factions">${escapeHtml(t("type_faction"))}</a></div>`, params, page, hasNext));
   }
 }
 
@@ -4152,7 +4356,7 @@ function bindEvents() {
     event.preventDefault();
     const q = (el.input.value || "").trim();
     const url = new URL(window.location.href);
-    ["item", "itemset", "npc", "object", "quest", "spell", "faction", "items", "itemsets", "npcs", "objects", "quests", "spells", "factions", "filter"].forEach((k) => url.searchParams.delete(k));
+    ["item", "itemset", "npc", "object", "quest", "spell", "faction", "items", "itemsets", "npcs", "objects", "quests", "spells", "factions", "filter", "page"].forEach((k) => url.searchParams.delete(k));
     if (q) {
       url.searchParams.set("search", q);
     } else {

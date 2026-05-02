@@ -195,6 +195,26 @@ body:not(.is-home) #topbar {
 #local-detail .listview-std td {
   line-height: 1.25;
 }
+.browse-pager {
+  margin: 4px 0 10px;
+  color: #aaa;
+  font-size: 12px;
+}
+.browse-pager a,
+.browse-pager span {
+  display: inline-block;
+  margin-right: 8px;
+}
+.browse-pager a {
+  color: #ffd100;
+  text-decoration: none;
+}
+.browse-pager a:hover {
+  text-decoration: underline;
+}
+.browse-pager .disabled {
+  color: #666;
+}
 #tabs-generic {
   clear: both;
 }
