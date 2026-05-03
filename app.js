@@ -1999,6 +1999,33 @@ function localQuestTooltipHtml(quest) {
   `;
 }
 
+function linkEntityHtml(type, id, label) {
+  return `<a href="?${type}=${encodeURIComponent(String(id))}">${escapeHtml(label)}</a>`;
+}
+
+function linkNamesInEscapedHtml(htmlText, entities, type) {
+  let html = String(htmlText || "");
+  const sorted = [...(entities || [])].sort((a, b) => String(b.original_name || b.name || "").length - String(a.original_name || a.name || "").length);
+  for (const entity of sorted) {
+    const original = String(entity.original_name || entity.name || "").trim();
+    const label = String(entity.name || original).trim();
+    const id = Number(entity.id);
+    if (!original || !label || !Number.isInteger(id) || id <= 0) continue;
+    const escapedOriginal = escapeHtml(original);
+    const linked = linkEntityHtml(type, id, label);
+    html = html.split(escapedOriginal).join(linked);
+  }
+  return html;
+}
+
+function questObjectiveLineHtml(text, objectiveNpcs, turninNpcs) {
+  const raw = String(text || "").trim();
+  if (!raw) return "";
+  let html = escapeHtml(raw);
+  html = linkNamesInEscapedHtml(html, objectiveNpcs, "npc");
+  return linkNamesInEscapedHtml(html, turninNpcs, "npc");
+}
+
 function registerGlobalQuestRows(rows) {
   if (!window.g_quests) return;
   for (const quest of rows || []) {
@@ -3420,6 +3447,8 @@ async function renderDetail(type, id) {
   let requirementRows = [];
   let seriesRows = [];
   let questObjectiveLine = "";
+  let questObjectiveNpcs = [];
+  let questTurninNpcs = [];
   let questObjectiveItems = [];
   let questRewardItems = [];
   let itemsetItems = [];
@@ -3465,7 +3494,13 @@ async function renderDetail(type, id) {
         WHEN starter_type='item' THEN (CASE WHEN :locale='zhCN' THEN COALESCE(li.name, i.name) ELSE i.name END)
         WHEN starter_type='object' THEN (CASE WHEN :locale='zhCN' THEN COALESCE(lo.name, o.name) ELSE o.name END)
         ELSE NULL
-      END AS name
+      END AS name,
+      CASE
+        WHEN starter_type='npc' THEN n.name
+        WHEN starter_type='item' THEN i.name
+        WHEN starter_type='object' THEN o.name
+        ELSE NULL
+      END AS original_name
       FROM quest_starters qs
       LEFT JOIN npcs n ON qs.starter_type='npc' AND n.npc_id=qs.starter_id
       LEFT JOIN items i ON qs.starter_type='item' AND i.item_id=qs.starter_id
@@ -3479,7 +3514,8 @@ async function renderDetail(type, id) {
     `, { ":id": id, ":locale": locale });
     const enders = await execRows(`
       SELECT n.npc_id AS id,
-      CASE WHEN :locale='zhCN' THEN COALESCE(l.name, n.name) ELSE n.name END AS name
+      CASE WHEN :locale='zhCN' THEN COALESCE(l.name, n.name) ELSE n.name END AS name,
+      n.name AS original_name
       FROM quest_enders qe
       JOIN npcs n ON n.npc_id=qe.npc_id
       LEFT JOIN entity_localizations l ON l.entity_type='npc' AND l.entity_id=n.npc_id AND l.locale='zhCN'
@@ -3487,6 +3523,7 @@ async function renderDetail(type, id) {
       ORDER BY name COLLATE NOCASE
       LIMIT 120;
     `, { ":id": id, ":locale": locale });
+    questTurninNpcs = enders.map((x) => ({ id: x.id, name: x.name, original_name: x.original_name }));
     const requirements = await execRows(`
       SELECT q.quest_id AS id,
       CASE WHEN :locale='zhCN' THEN COALESCE(l.name, q.name) ELSE q.name END AS name,
@@ -3571,14 +3608,36 @@ async function renderDetail(type, id) {
       try {
         const links = JSON.parse(payloadRows[0].outbound_links_json);
         const itemIds = [];
+        const npcIds = [];
         const linkedQuestIds = [];
         for (const link of links || []) {
           if (!Array.isArray(link) || !Number.isFinite(Number(link[1]))) continue;
           if (link[0] === "item") {
             itemIds.push(Number(link[1]));
+          } else if (link[0] === "npc") {
+            npcIds.push(Number(link[1]));
           } else if (link[0] === "quest" && Number(link[1]) !== Number(id)) {
             linkedQuestIds.push(Number(link[1]));
           }
+        }
+        const starterEnderNpcIds = new Set([
+          ...starters.filter((x) => x.starter_type === "npc").map((x) => Number(x.id)),
+          ...enders.map((x) => Number(x.id))
+        ]);
+        const objectiveNpcIds = [...new Set(npcIds)].filter((npcId) => !starterEnderNpcIds.has(Number(npcId)));
+        if (objectiveNpcIds.length) {
+          const placeholders = objectiveNpcIds.map((_, idx) => `:nid${idx}`).join(",");
+          const npcParams = {};
+          objectiveNpcIds.forEach((npcId, idx) => { npcParams[`:nid${idx}`] = npcId; });
+          questObjectiveNpcs = await execRows(`
+            SELECT n.npc_id AS id,
+            CASE WHEN :locale='zhCN' THEN COALESCE(l.name, n.name) ELSE n.name END AS name,
+            n.name AS original_name
+            FROM npcs n
+            LEFT JOIN entity_localizations l ON l.entity_type='npc' AND l.entity_id=n.npc_id AND l.locale='zhCN'
+            WHERE n.npc_id IN (${placeholders})
+            ORDER BY n.npc_id;
+          `, { ...npcParams, ":locale": locale });
         }
         if (!requirementRows.length && linkedQuestIds.length) {
           const uniqQuestIds = [...new Set(linkedQuestIds)];
@@ -4237,10 +4296,12 @@ async function renderDetail(type, id) {
   const itemTooltipBlock = type === "item" ? renderItemTooltipBlock(row, itemFactMap) : "";
   const spellTooltipBlock = type === "spell" ? renderSpellTooltipBlock(row) : "";
   const questStarterName = rowStartEndCache.start ? rowStartEndCache.start.name : "";
-  const questIntroLine = type === "quest"
-    ? (questObjectiveLine || ((questObjectiveItems.length && questStarterName)
-      ? `${state.lang === "zhCN" ? "将" : "Bring "}${questObjectiveItems[0].name}${state.lang === "zhCN" ? "交给" : " to "}${questStarterName}${state.lang === "zhCN" ? "。" : "."}`
-      : ""))
+  const questIntroHtml = type === "quest"
+    ? (questObjectiveLine
+      ? questObjectiveLineHtml(questObjectiveLine, questObjectiveNpcs, questTurninNpcs)
+      : ((questObjectiveItems.length && questStarterName)
+        ? escapeHtml(`${state.lang === "zhCN" ? "将" : "Bring "}${questObjectiveItems[0].name}${state.lang === "zhCN" ? "交给" : " to "}${questStarterName}${state.lang === "zhCN" ? "。" : "."}`)
+        : ""))
     : "";
   const questObjectiveHtml = type === "quest" && questObjectiveItems.length
     ? `<table class="iconlist">${questObjectiveItems.map((x) => {
@@ -4299,7 +4360,7 @@ async function renderDetail(type, id) {
       <h1>${escapeHtml(row.name)}</h1>
       ${itemTooltipBlock}
       ${spellTooltipBlock}
-      ${questIntroLine ? `<div class="block-text">${escapeHtml(questIntroLine)}</div>` : ""}
+      ${questIntroHtml ? `<div class="block-text">${questIntroHtml}</div>` : ""}
       ${introHtml ? `${introHtml}<br>` : ""}
       ${factionContentHtml}
       ${itemsetListHtml}
