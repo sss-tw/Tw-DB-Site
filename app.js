@@ -2781,13 +2781,42 @@ function initMapper(points) {
   if (!container) return;
   try {
     container.innerHTML = "";
-    const first = list[0];
-    const mapper = new window.Mapper({ parent: "mapper-generic", zone: String(first.zone_id) });
-    if (mapper && typeof mapper.update === "function") {
-      mapper.update({
-        zone: Number(first.zone_id),
-        coords: list.map((p) => [Number(p.x), Number(p.y), { label: "$", type: "0" }])
+    const groups = [];
+    const byZone = new Map();
+    for (const point of list) {
+      const zoneId = Number(point.zone_id);
+      const key = String(zoneId);
+      if (!byZone.has(key)) {
+        const group = { zoneId, name: point.name || `Zone ${zoneId}`, points: [] };
+        byZone.set(key, group);
+        groups.push(group);
+      }
+      byZone.get(key).points.push(point);
+    }
+    let activeZone = groups[0];
+    const controls = document.querySelectorAll("[data-map-zone]");
+    const setActiveLink = (zoneId) => {
+      controls.forEach((node) => {
+        node.classList.toggle("active", String(node.getAttribute("data-map-zone")) === String(zoneId));
       });
+    };
+    const coordsFor = (group) => group.points.map((p) => [Number(p.x), Number(p.y), { label: "$", type: "0" }]);
+    const mapper = new window.Mapper({ parent: "mapper-generic", zone: String(activeZone.zoneId) });
+    if (mapper && typeof mapper.update === "function") {
+      const updateTo = (group) => {
+        activeZone = group;
+        mapper.update({ zone: Number(group.zoneId), coords: coordsFor(group) });
+        setActiveLink(group.zoneId);
+      };
+      controls.forEach((node) => {
+        node.addEventListener("click", (event) => {
+          const group = byZone.get(String(node.getAttribute("data-map-zone")));
+          if (!group) return;
+          event.preventDefault();
+          updateTo(group);
+        });
+      });
+      updateTo(activeZone);
     }
   } catch (_) {
     // Keep page rendering even when mapper initialization fails.
@@ -2973,6 +3002,26 @@ function browsePagerHtml(params, page, hasNext) {
 
 function browseChromeHtml(breadcrumbHtml, params, page, hasNext) {
   return `${breadcrumbHtml || ""}${browsePagerHtml(params, page, hasNext)}`;
+}
+
+function locationLinksHtml(points) {
+  const grouped = [];
+  const seen = new Set();
+  for (const point of points || []) {
+    if (!point || point.zone_id == null || !point.name) continue;
+    const key = `${point.zone_id}:${point.name}`;
+    const existing = grouped.find((x) => x.key === key);
+    if (existing) {
+      existing.count += 1;
+      continue;
+    }
+    if (seen.has(key)) continue;
+    seen.add(key);
+    grouped.push({ key, zoneId: Number(point.zone_id), name: point.name, count: 1 });
+  }
+  return grouped
+    .map((x) => `<a href="javascript:;" data-map-zone="${escapeHtml(String(x.zoneId))}">${escapeHtml(x.name)}</a>&nbsp;(${escapeHtml(String(x.count))})`)
+    .join(", ");
 }
 
 async function renderBrowseList(listType, params = new URLSearchParams(window.location.search)) {
@@ -4003,27 +4052,21 @@ async function renderDetail(type, id) {
     mapperPoints = await execRows(`
       SELECT mp.zone_id,
       mp.x, mp.y,
-      CASE WHEN :locale='zhCN' THEN COALESCE(l.name, z.zone_name) ELSE z.zone_name END AS name
+      CASE
+        WHEN NULLIF(mp.label_text, '') IS NOT NULL AND :locale='zhCN' AND mp.label_text='Kalimdor' THEN '卡利姆多'
+        WHEN NULLIF(mp.label_text, '') IS NOT NULL THEN mp.label_text
+        WHEN :locale='zhCN' THEN COALESCE(l.name, z.zone_name)
+        ELSE z.zone_name
+      END AS name
       FROM map_points mp
       LEFT JOIN zones z ON z.zone_id=mp.zone_id
       LEFT JOIN entity_localizations l ON l.entity_type='zone' AND l.entity_id=z.zone_id AND l.locale='zhCN'
       WHERE mp.entity_type='npc' AND mp.entity_id=:id
       ORDER BY name COLLATE NOCASE, mp.point_id
-      LIMIT 20;
+      LIMIT 500;
     `, { ":id": id, ":locale": locale });
     if (mapperPoints.length) {
-      const links = mapperPoints
-        .filter((x) => x.name)
-        .reduce((acc, point) => {
-          const key = `${point.zone_id}:${point.name}`;
-          const existing = acc.get(key) || { zone_id: point.zone_id, name: point.name, count: 0 };
-          existing.count += 1;
-          acc.set(key, existing);
-          return acc;
-        }, new Map());
-      const locationLinks = Array.from(links.values())
-        .map((x) => `<a href="javascript:;">${escapeHtml(x.name)}</a>&nbsp;(${escapeHtml(String(x.count))})`)
-        .join(", ");
+      const locationLinks = locationLinksHtml(mapperPoints);
       introHtml = state.lang === "zhCN"
         ? `该 NPC 可在 ${locationLinks} 找到。<br><div id="mapper-generic"></div><div class="clear"></div>`
         : `This NPC can be found in ${locationLinks}.<br><div id="mapper-generic"></div><div class="clear"></div>`;
@@ -4090,19 +4133,21 @@ async function renderDetail(type, id) {
     mapperPoints = await execRows(`
       SELECT mp.zone_id,
       mp.x, mp.y,
-      CASE WHEN :locale='zhCN' THEN COALESCE(l.name, z.zone_name) ELSE z.zone_name END AS name
+      CASE
+        WHEN NULLIF(mp.label_text, '') IS NOT NULL AND :locale='zhCN' AND mp.label_text='Kalimdor' THEN '卡利姆多'
+        WHEN NULLIF(mp.label_text, '') IS NOT NULL THEN mp.label_text
+        WHEN :locale='zhCN' THEN COALESCE(l.name, z.zone_name)
+        ELSE z.zone_name
+      END AS name
       FROM map_points mp
       LEFT JOIN zones z ON z.zone_id=mp.zone_id
       LEFT JOIN entity_localizations l ON l.entity_type='zone' AND l.entity_id=z.zone_id AND l.locale='zhCN'
       WHERE mp.entity_type='object' AND mp.entity_id=:id
       ORDER BY name COLLATE NOCASE, mp.point_id
-      LIMIT 20;
+      LIMIT 500;
     `, { ":id": id, ":locale": locale });
     if (mapperPoints.length) {
-      const links = mapperPoints
-        .filter((x) => x.name)
-        .map((x) => `<a href="?objects=${encodeURIComponent(String(x.zone_id))}">${escapeHtml(x.name)}</a>`)
-        .join(", ");
+      const links = locationLinksHtml(mapperPoints);
       introHtml = state.lang === "zhCN"
         ? `该物体可在 ${links} 找到。<br><div id="mapper-generic"></div><div class="clear"></div>`
         : `This object can be found in ${links}.<br><div id="mapper-generic"></div><div class="clear"></div>`;

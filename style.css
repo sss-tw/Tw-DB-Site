@@ -215,6 +215,11 @@ body:not(.is-home) #topbar {
 .browse-pager .disabled {
   color: #666;
 }
+#local-detail a[data-map-zone].active {
+  color: #fff;
+  font-weight: 700;
+  text-decoration: none;
+}
 #tabs-generic {
   clear: both;
 }
