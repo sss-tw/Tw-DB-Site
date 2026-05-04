@@ -2487,7 +2487,7 @@ async function hydratePayloadListview(lv, locale) {
       name: x.name,
       level: x.level,
       reqlevel: x.reqlevel,
-      quality_class: x.quality_class,
+      quality_class: x.quality_class ?? x.quality,
       classs: x.classs,
       subclass: x.subclass,
       description: x.description,
@@ -2495,6 +2495,8 @@ async function hydratePayloadListview(lv, locale) {
       slot: x.slot,
       type: x.type,
       percent: x.percent,
+      stock: x.stock,
+      cost: Array.isArray(x.cost) ? x.cost : undefined,
       dps: x.dps,
       speed: x.speed
     })));
