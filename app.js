@@ -4052,12 +4052,7 @@ async function renderDetail(type, id) {
     mapperPoints = await execRows(`
       SELECT mp.zone_id,
       mp.x, mp.y,
-      CASE
-        WHEN NULLIF(mp.label_text, '') IS NOT NULL AND :locale='zhCN' AND mp.label_text='Kalimdor' THEN '卡利姆多'
-        WHEN NULLIF(mp.label_text, '') IS NOT NULL THEN mp.label_text
-        WHEN :locale='zhCN' THEN COALESCE(l.name, z.zone_name)
-        ELSE z.zone_name
-      END AS name
+      CASE WHEN :locale='zhCN' THEN COALESCE(l.name, z.zone_name) ELSE z.zone_name END AS name
       FROM map_points mp
       LEFT JOIN zones z ON z.zone_id=mp.zone_id
       LEFT JOIN entity_localizations l ON l.entity_type='zone' AND l.entity_id=z.zone_id AND l.locale='zhCN'
@@ -4133,12 +4128,7 @@ async function renderDetail(type, id) {
     mapperPoints = await execRows(`
       SELECT mp.zone_id,
       mp.x, mp.y,
-      CASE
-        WHEN NULLIF(mp.label_text, '') IS NOT NULL AND :locale='zhCN' AND mp.label_text='Kalimdor' THEN '卡利姆多'
-        WHEN NULLIF(mp.label_text, '') IS NOT NULL THEN mp.label_text
-        WHEN :locale='zhCN' THEN COALESCE(l.name, z.zone_name)
-        ELSE z.zone_name
-      END AS name
+      CASE WHEN :locale='zhCN' THEN COALESCE(l.name, z.zone_name) ELSE z.zone_name END AS name
       FROM map_points mp
       LEFT JOIN zones z ON z.zone_id=mp.zone_id
       LEFT JOIN entity_localizations l ON l.entity_type='zone' AND l.entity_id=z.zone_id AND l.locale='zhCN'
