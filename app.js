@@ -3607,11 +3607,16 @@ async function renderDetail(type, id) {
     `, { ":id": id });
     questFactMap = toFactMap(questFacts);
     const objectiveLineRows = await execRows(`
-      SELECT objective_text
-      FROM quest_objective_lines
-      WHERE quest_id=:id
+      SELECT CASE
+        WHEN :locale='zhCN' THEN COALESCE(NULLIF(l.objective_text, ''), qol.objective_text)
+        ELSE qol.objective_text
+      END AS objective_text
+      FROM quest_objective_lines qol
+      LEFT JOIN entity_localizations l
+        ON l.entity_type='quest' AND l.entity_id=qol.quest_id AND l.locale='zhCN'
+      WHERE qol.quest_id=:id
       LIMIT 1;
-    `, { ":id": id });
+    `, { ":id": id, ":locale": locale });
     questObjectiveLine = String((objectiveLineRows[0] && objectiveLineRows[0].objective_text) || "").trim();
     const requiredItemsRows = await execRows(`
       SELECT qri.item_id AS id, qri.item_count AS count, qri.sort_order,
