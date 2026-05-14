@@ -3496,6 +3496,7 @@ async function renderDetail(type, id) {
   let mapperPoints = [];
   let rowStartEndCache = { start: null, end: null };
   let requirementRows = [];
+  let opensRows = [];
   let seriesRows = [];
   let questObjectiveLine = "";
   let questObjectiveNpcs = [];
@@ -3598,6 +3599,7 @@ async function renderDetail(type, id) {
       ORDER BY name COLLATE NOCASE
       LIMIT 120;
     `, { ":id": id, ":locale": locale });
+    opensRows = opens;
     questFacts = await execRows(`
       SELECT fact_key, fact_value
       FROM quest_facts
@@ -4243,8 +4245,15 @@ async function renderDetail(type, id) {
     : "";
   const npcDamageText = npcFactMap.Damage || ((row.damage_min != null || row.damage_max != null) ? (row.damage_min === row.damage_max ? row.damage_min : `${row.damage_min ?? ""}-${row.damage_max ?? ""}`) : "");
   const orderedSeries = requirementRows.length ? requirementRows : seriesRows;
-  const questSeriesRows = (type === "quest" && orderedSeries.length)
-    ? `<tr><th>Series</th></tr><tr><td><div class="infobox-spacer"></div><table class="series">${orderedSeries.map((x, i) => `<tr><th>${i + 1}.</th><td><div><a href="?quest=${encodeURIComponent(String(x.id))}">${escapeHtml(x.name)}</a></div></td></tr>`).join("")}<tr><th>${orderedSeries.length + 1}.</th><td><b>${escapeHtml(row.name)}</b></td></tr></table></td></tr>`
+  const questSeriesEntries = type === "quest"
+    ? [
+        ...orderedSeries.map((x) => ({ ...x, current: false })),
+        { id: row.id, name: row.name, current: true },
+        ...opensRows.filter((x) => Number(x.id) !== Number(row.id)).map((x) => ({ ...x, current: false }))
+      ]
+    : [];
+  const questSeriesRows = (type === "quest" && questSeriesEntries.length > 1)
+    ? `<tr><th>Series</th></tr><tr><td><div class="infobox-spacer"></div><table class="series">${questSeriesEntries.map((x, i) => `<tr><th>${i + 1}.</th><td><div>${x.current ? `<b>${escapeHtml(x.name)}</b>` : `<a href="?quest=${encodeURIComponent(String(x.id))}">${escapeHtml(x.name)}</a>`}</div></td></tr>`).join("")}</table></td></tr>`
     : "";
   const infoboxTail = type === "npc"
     ? `${row.model_image ? `<div style="width:220px;height:220px;border:1px solid #404040;border-radius:5px;background:#111;overflow:hidden"><img width="220" height="220" src="${escapeHtml(row.model_image)}" alt="${escapeHtml(row.name)}" onerror="this.style.display='none'"></div>` : ""}`
