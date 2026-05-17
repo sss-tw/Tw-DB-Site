@@ -1,3 +1,7 @@
+import sqlHttpVfs from "https://cdn.jsdelivr.net/npm/sql.js-httpvfs@0.8.12/+esm";
+
+const { createDbWorker } = sqlHttpVfs;
+
 const I18N = {
   enUS: {
     statusReady: "Ready",
@@ -136,6 +140,9 @@ const I18N = {
 const state = {
   lang: localStorage.getItem("turtle-db-lang") || "enUS",
   dbClient: null,
+  dbWorker: null,
+  dbDriver: "turso",
+  tursoFailed: false,
   timer: null,
   originalMenus: null,
   hasSearchFts: null
@@ -1174,7 +1181,30 @@ function libsqlArgs(sql, params = {}) {
   return args;
 }
 
-async function ensureDb() {
+function fallbackDatabaseUrl(cfg) {
+  return cfg.r2DatabaseUrl || cfg.databaseUrl || "";
+}
+
+function hasR2Fallback(cfg) {
+  const url = fallbackDatabaseUrl(cfg);
+  return !!url && !url.includes("pub-your-r2-domain");
+}
+
+function shouldFallbackToR2(err) {
+  const msg = String((err && (err.message || err.stack)) || err || "").toLowerCase();
+  return msg.includes("quota")
+    || msg.includes("rate")
+    || msg.includes("limit")
+    || msg.includes("429")
+    || msg.includes("403")
+    || msg.includes("401")
+    || msg.includes("unauthorized")
+    || msg.includes("forbidden")
+    || msg.includes("blocked")
+    || msg.includes("fetch");
+}
+
+async function ensureTursoDb() {
   if (state.dbClient) return state.dbClient;
   const cfg = window.TURTLE_DB_CONFIG || {};
   if (!cfg.tursoUrl || !cfg.authToken) {
@@ -1190,14 +1220,79 @@ async function ensureDb() {
   return state.dbClient;
 }
 
+async function ensureR2Db() {
+  if (state.dbWorker) return state.dbWorker;
+  const cfg = window.TURTLE_DB_CONFIG || {};
+  const url = fallbackDatabaseUrl(cfg);
+  if (!hasR2Fallback(cfg)) {
+    throw new Error("Please set databaseUrl or r2DatabaseUrl in db-config.js for R2 fallback");
+  }
+  setStatus(state.lang === "zhCN" ? "Turso 不可用，正在切换到 R2 数据库..." : "Turso unavailable, switching to R2 database...");
+  state.dbWorker = await createDbWorker(
+    [{
+      from: "inline",
+      config: {
+        serverMode: "full",
+        requestChunkSize: cfg.requestChunkSize || 4096,
+        url
+      }
+    }],
+    "./sqlite.worker.js",
+    "./sql-wasm.wasm"
+  );
+  state.dbDriver = "r2";
+  setStatus(t("statusReady"));
+  return state.dbWorker;
+}
+
+async function ensureDb() {
+  if (state.dbDriver === "r2" || state.tursoFailed) {
+    return ensureR2Db();
+  }
+  return ensureTursoDb();
+}
+
 async function execRows(sql, params = {}) {
-  const db = await ensureDb();
-  const result = await db.execute({ sql, args: libsqlArgs(sql, params) });
-  return (result.rows || []).map((row) => {
-    const obj = {};
-    for (const key of Object.keys(row)) obj[key] = row[key];
-    return obj;
-  });
+  const cfg = window.TURTLE_DB_CONFIG || {};
+  if (state.dbDriver === "r2" || state.tursoFailed) {
+    const worker = await ensureR2Db();
+    const result = await worker.db.exec(sql, params);
+    if (!result || !result.length) return [];
+    const first = result[0];
+    const columns = first.columns || [];
+    const values = first.values || [];
+    return values.map((row) => {
+      const obj = {};
+      for (let i = 0; i < columns.length; i += 1) obj[columns[i]] = row[i];
+      return obj;
+    });
+  }
+  try {
+    const db = await ensureTursoDb();
+    const result = await db.execute({ sql, args: libsqlArgs(sql, params) });
+    return (result.rows || []).map((row) => {
+      const obj = {};
+      for (const key of Object.keys(row)) obj[key] = row[key];
+      return obj;
+    });
+  } catch (err) {
+    if (!hasR2Fallback(cfg) || !shouldFallbackToR2(err)) {
+      throw err;
+    }
+    state.tursoFailed = true;
+    state.dbDriver = "r2";
+    const worker = await ensureR2Db();
+    const result = await worker.db.exec(sql, params);
+    if (!result || !result.length) return [];
+    const first = result[0];
+    const columns = first.columns || [];
+    const values = first.values || [];
+    return values.map((row) => {
+      const obj = {};
+      for (let i = 0; i < columns.length; i += 1) obj[columns[i]] = row[i];
+      return obj;
+    });
+  }
 }
 
 async function hasSearchFts() {
